@@ -1,16 +1,11 @@
 import 'dart:ui';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
-import 'package:font_awesome_flutter/font_awesome_flutter.dart';
 import 'package:google_fonts/google_fonts.dart';
-import 'package:google_sign_in/google_sign_in.dart';
-import 'package:hop_eir/features/auth/presentation/pages/login_password_screen.dart';
 import 'package:hop_eir/features/auth/presentation/pages/sign_up_screen.dart';
 import 'package:hop_eir/features/auth/presentation/providers/auth_provider.dart';
-import 'package:hop_eir/features/rides/presentation/widgets/message_banner.dart';
 import 'package:hop_eir/features/vehicles/presentation/provider/vehicle_providers.dart';
 import 'package:hop_eir/widgets/modern_button.dart';
-import 'package:sign_in_with_apple/sign_in_with_apple.dart';
 
 class LoginScreen extends ConsumerStatefulWidget {
   const LoginScreen({super.key});
@@ -60,74 +55,74 @@ class _LoginScreenState extends ConsumerState<LoginScreen> {
     }
   }
 
-  Future<void> _signInWithGoogle() async {
-    try {
-      final GoogleSignIn googleSignIn = GoogleSignIn();
+  // Future<void> _signInWithGoogle() async {
+  //   try {
+  //     final GoogleSignIn googleSignIn = GoogleSignIn();
 
-      // Force sign out previous session to show account picker every time
-      await googleSignIn.signOut();
+  //     // Force sign out previous session to show account picker every time
+  //     await googleSignIn.signOut();
 
-      final GoogleSignInAccount? googleUser = await googleSignIn.signIn();
+  //     final GoogleSignInAccount? googleUser = await googleSignIn.signIn();
 
-      // ✅ Handle the case where the user cancels sign-in
-      if (googleUser == null) {
-        debugPrint('Google Sign-In was cancelled by the user.');
-        return; // Safely exit without crashing
-      }
+  //     // ✅ Handle the case where the user cancels sign-in
+  //     if (googleUser == null) {
+  //       debugPrint('Google Sign-In was cancelled by the user.');
+  //       return; // Safely exit without crashing
+  //     }
 
-      final String email = googleUser.email;
-      debugPrint('Google user: $email');
+  //     final String email = googleUser.email;
+  //     debugPrint('Google user: $email');
 
-      // ✅ Prevent navigation if the widget was disposed
-      if (!mounted) return;
+  //     // ✅ Prevent navigation if the widget was disposed
+  //     if (!mounted) return;
 
-      Navigator.push(
-        context,
-        MaterialPageRoute(builder: (_) => PasswordLoginScreen(email: email)),
-      );
-    } catch (e) {
-      debugPrint('Google Sign-In failed: $e');
-      showPopUp(
-        context,
-        icon: FontAwesomeIcons.triangleExclamation,
-        message: "Google Sign-In failed. Please try again.",
-      );
-    }
-  }
+  //     Navigator.push(
+  //       context,
+  //       MaterialPageRoute(builder: (_) => PasswordLoginScreen(email: email)),
+  //     );
+  //   } catch (e) {
+  //     debugPrint('Google Sign-In failed: $e');
+  //     showPopUp(
+  //       context,
+  //       icon: FontAwesomeIcons.triangleExclamation,
+  //       message: "Google Sign-In failed. Please try again.",
+  //     );
+  //   }
+  // }
 
-  Future<void> _signInWithApple() async {
-    try {
-      final credential = await SignInWithApple.getAppleIDCredential(
-        scopes: [AppleIDAuthorizationScopes.email],
-      );
+  // Future<void> _signInWithApple() async {
+  //   try {
+  //     final credential = await SignInWithApple.getAppleIDCredential(
+  //       scopes: [AppleIDAuthorizationScopes.email],
+  //     );
 
-      String? email = credential.email;
+  //     String? email = credential.email;
 
-      // If the email is not provided (in some cases, Apple returns null)
-      if (email == null || email.isEmpty) {
-        // You can handle this based on your backend, or ask user to input email
-        showPopUp(
-          context,
-          icon: FontAwesomeIcons.triangleExclamation,
-          message: "Email not available from Apple Sign-In",
-        );
-        return;
-      }
+  //     // If the email is not provided (in some cases, Apple returns null)
+  //     if (email == null || email.isEmpty) {
+  //       // You can handle this based on your backend, or ask user to input email
+  //       showPopUp(
+  //         context,
+  //         icon: FontAwesomeIcons.triangleExclamation,
+  //         message: "Email not available from Apple Sign-In",
+  //       );
+  //       return;
+  //     }
 
-      debugPrint('Apple user: $email');
+  //     debugPrint('Apple user: $email');
 
-      Navigator.push(
-        context,
-        MaterialPageRoute(builder: (_) => PasswordLoginScreen(email: email)),
-      );
-    } catch (e) {
-      showPopUp(
-        context,
-        icon: FontAwesomeIcons.triangleExclamation,
-        message: "Failed",
-      );
-    }
-  }
+  //     Navigator.push(
+  //       context,
+  //       MaterialPageRoute(builder: (_) => PasswordLoginScreen(email: email)),
+  //     );
+  //   } catch (e) {
+  //     showPopUp(
+  //       context,
+  //       icon: FontAwesomeIcons.triangleExclamation,
+  //       message: "Failed",
+  //     );
+  //   }
+  // }
 
   @override
   void dispose() {
@@ -191,9 +186,9 @@ class _LoginScreenState extends ConsumerState<LoginScreen> {
                               Text(
                                 "Welcome Back",
                                 style: GoogleFonts.racingSansOne(
-                                  fontSize: height * 0.05,
+                                  fontSize: height * 0.045,
                                   color: Colors.white.withOpacity(0.7),
-                                  fontWeight: FontWeight.bold,
+                                  fontWeight: FontWeight.w500,
                                 ),
                               ),
                               const SizedBox(height: 8),
@@ -264,7 +259,7 @@ class _LoginScreenState extends ConsumerState<LoginScreen> {
                               const SizedBox(height: 20),
                               Divider(color: Colors.grey[400]),
                               const SizedBox(height: 20),
-                              _socialLoginButtons(),
+                              // _socialLoginButtons(),
                             ],
                           ),
                         ),
@@ -369,57 +364,58 @@ class _LoginScreenState extends ConsumerState<LoginScreen> {
     );
   }
 
-  Widget _socialLoginButtons() {
-    return Column(
-      children: [
-        _socialButton(
-          asset: 'assets/icons/7123025_logo_google_g_icon.png',
-          label: 'Continue with Google',
-          onPressed: _signInWithGoogle,
-        ),
-        const SizedBox(height: 16),
-        _socialButton(
-          asset: 'assets/icons/104490_apple_icon.png',
-          label: 'Continue with Apple',
-          onPressed: _signInWithApple,
-        ),
-      ],
-    );
-  }
+  // Widget _socialLoginButtons() {
+  //   return Column(
+  //     children: [
+  //       _socialButton(
+  //         asset: 'assets/icons/7123025_logo_google_g_icon.png',
+  //         label: 'Continue with Google',
+  //         onPressed: _signInWithGoogle,
+  //       ),
+  //       const SizedBox(height: 16),
+  //       _socialButton(
+  //         asset: 'assets/icons/104490_apple_icon.png',
+  //         label: 'Continue with Apple',
+  //         onPressed: _signInWithApple,
+  //       ),
+  //     ],
+  //   );
+  // }
 
-  Widget _socialButton({
-    required String asset,
-    required String label,
-    required VoidCallback onPressed,
-  }) {
-    return SizedBox(
-      width: double.infinity,
-      height: 50,
-      child: ElevatedButton(
-        onPressed: onPressed,
-        style: ElevatedButton.styleFrom(
-          backgroundColor: Colors.white.withOpacity(0.9),
-          shape: RoundedRectangleBorder(
-            borderRadius: BorderRadius.circular(14),
-          ),
-          elevation: 3,
-          padding: const EdgeInsets.symmetric(horizontal: 20),
-        ),
-        child: Row(
-          mainAxisAlignment: MainAxisAlignment.center,
-          children: [
-            Image.asset(asset, height: 24),
-            const SizedBox(width: 16),
-            Text(
-              label,
-              style: GoogleFonts.poppins(
-                color: Colors.black87,
-                fontWeight: FontWeight.w500,
-              ),
-            ),
-          ],
-        ),
-      ),
-    );
-  }
+  //   Widget _socialButton({
+  //     required String asset,
+  //     required String label,
+  //     required VoidCallback onPressed,
+  //   }) {
+  //     return SizedBox(
+  //       width: double.infinity,
+  //       height: 50,
+  //       child: ElevatedButton(
+  //         onPressed: onPressed,
+  //         style: ElevatedButton.styleFrom(
+  //           backgroundColor: Colors.white.withOpacity(0.9),
+  //           shape: RoundedRectangleBorder(
+  //             borderRadius: BorderRadius.circular(14),
+  //           ),
+  //           elevation: 3,
+  //           padding: const EdgeInsets.symmetric(horizontal: 20),
+  //         ),
+  //         child: Row(
+  //           mainAxisAlignment: MainAxisAlignment.center,
+  //           children: [
+  //             Image.asset(asset, height: 24),
+  //             const SizedBox(width: 16),
+  //             Text(
+  //               label,
+  //               style: GoogleFonts.poppins(
+  //                 color: Colors.black87,
+  //                 fontWeight: FontWeight.w500,
+  //               ),
+  //             ),
+  //           ],
+  //         ),
+  //       ),
+  //     );
+  //   }
+  // }
 }
