@@ -18,11 +18,16 @@ class _SosPageState extends State<SosPage> {
   Future<void> _makeDirectCall(String number) async {
     final Uri uri = Uri(scheme: 'tel', path: number);
 
-    if (!mounted) return;
-
     final status = await Permission.phone.status;
+
     if (!status.isGranted) {
       final result = await Permission.phone.request();
+
+      if (result.isPermanentlyDenied) {
+        openAppSettings();
+        return;
+      }
+
       if (!result.isGranted) {
         if (!mounted) return;
         ScaffoldMessenger.of(context).showSnackBar(
@@ -36,15 +41,16 @@ class _SosPageState extends State<SosPage> {
       await launchUrl(uri);
     } else {
       if (!mounted) return;
-      ScaffoldMessenger.of(
-        context,
-      ).showSnackBar(SnackBar(content: Text("Could not call $number")));
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(content: Text("Could not call $number")),
+      );
     }
   }
 
   @override
   Widget build(BuildContext context) {
     final size = MediaQuery.of(context).size;
+    final isTablet = size.width > 600;
 
     return Scaffold(
       backgroundColor: bgColor,
@@ -64,79 +70,84 @@ class _SosPageState extends State<SosPage> {
             ),
           ),
 
-          // Glassmorphism Card
+          // Centered Glassmorphism Card with constraints
           Center(
-            child: ClipRRect(
-              borderRadius: BorderRadius.circular(30),
-              child: BackdropFilter(
-                filter: ImageFilter.blur(sigmaX: 25, sigmaY: 25),
-                child: Container(
-                  width: size.width * 0.85,
-                  padding: const EdgeInsets.all(28),
-                  decoration: BoxDecoration(
-                    color: Colors.white.withOpacity(0.1),
-                    borderRadius: BorderRadius.circular(30),
-                    border: Border.all(
-                      color: Colors.white.withOpacity(0.2),
-                      width: 1.2,
-                    ),
-                    boxShadow: [
-                      BoxShadow(
-                        color: Colors.black.withOpacity(0.08),
-                        blurRadius: 30,
-                        offset: const Offset(0, 10),
-                      ),
-                    ],
-                  ),
-                  child: Column(
-                    mainAxisSize: MainAxisSize.min,
-                    children: [
-                      Icon(
-                        Icons.emergency_rounded,
-                        size: 88,
-                        color: Colors.red.shade600,
-                      ),
-                      const SizedBox(height: 20),
-                      Text(
-                        'Emergency SOS',
-                        style: GoogleFonts.righteous(
-                          fontSize: 32,
-                          color: Colors.white,
-                          letterSpacing: 1,
+            child: SingleChildScrollView(
+              padding: const EdgeInsets.all(20),
+              child: ConstrainedBox(
+                constraints: const BoxConstraints(maxWidth: 600),
+                child: ClipRRect(
+                  borderRadius: BorderRadius.circular(30),
+                  child: BackdropFilter(
+                    filter: ImageFilter.blur(sigmaX: 25, sigmaY: 25),
+                    child: Container(
+                      padding: const EdgeInsets.all(28),
+                      decoration: BoxDecoration(
+                        color: Colors.white.withOpacity(0.1),
+                        borderRadius: BorderRadius.circular(30),
+                        border: Border.all(
+                          color: Colors.white.withOpacity(0.2),
+                          width: 1.2,
                         ),
+                        boxShadow: [
+                          BoxShadow(
+                            color: Colors.black.withOpacity(0.08),
+                            blurRadius: 30,
+                            offset: const Offset(0, 10),
+                          ),
+                        ],
                       ),
-                      const SizedBox(height: 12),
-                      Text(
-                        'Tap the button below to call emergency services immediately.',
-                        textAlign: TextAlign.center,
-                        style: GoogleFonts.poppins(
-                          fontSize: 15,
-                          color: Colors.white70,
-                        ),
-                      ),
-                      const SizedBox(height: 30),
-                      SizedBox(
-                        width: double.infinity,
-                        height: 52,
-                        child: ElevatedButton.icon(
-                          onPressed: () => _makeDirectCall("112"),
-                          icon: const Icon(Icons.call_rounded),
-                          label: const Text("Call Emergency"),
-                          style: ElevatedButton.styleFrom(
-                            backgroundColor: Colors.red.shade600,
-                            foregroundColor: Colors.white,
-                            textStyle: GoogleFonts.poppins(
-                              fontSize: 17,
-                              fontWeight: FontWeight.w600,
-                            ),
-                            elevation: 6,
-                            shape: RoundedRectangleBorder(
-                              borderRadius: BorderRadius.circular(16),
+                      child: Column(
+                        mainAxisSize: MainAxisSize.min,
+                        children: [
+                          Icon(
+                            Icons.emergency_rounded,
+                            size: isTablet ? 100 : 88,
+                            color: Colors.red.shade600,
+                          ),
+                          const SizedBox(height: 20),
+                          Text(
+                            'Emergency SOS',
+                            style: GoogleFonts.righteous(
+                              fontSize: isTablet ? 36 : 32,
+                              color: Colors.white,
+                              letterSpacing: 1,
                             ),
                           ),
-                        ),
+                          const SizedBox(height: 12),
+                          Text(
+                            'Tap the button below to call emergency services immediately.',
+                            textAlign: TextAlign.center,
+                            style: GoogleFonts.poppins(
+                              fontSize: isTablet ? 17 : 15,
+                              color: Colors.white70,
+                            ),
+                          ),
+                          const SizedBox(height: 30),
+                          SizedBox(
+                            width: double.infinity,
+                            height: 52,
+                            child: ElevatedButton.icon(
+                              onPressed: () => _makeDirectCall("112"),
+                              icon: const Icon(Icons.call_rounded),
+                              label: const Text("Call Emergency"),
+                              style: ElevatedButton.styleFrom(
+                                backgroundColor: Colors.red.shade600,
+                                foregroundColor: Colors.white,
+                                textStyle: GoogleFonts.poppins(
+                                  fontSize: isTablet ? 19 : 17,
+                                  fontWeight: FontWeight.w600,
+                                ),
+                                elevation: 6,
+                                shape: RoundedRectangleBorder(
+                                  borderRadius: BorderRadius.circular(16),
+                                ),
+                              ),
+                            ),
+                          ),
+                        ],
                       ),
-                    ],
+                    ),
                   ),
                 ),
               ),

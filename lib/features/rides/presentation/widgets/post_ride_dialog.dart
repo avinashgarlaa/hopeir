@@ -19,16 +19,17 @@ Future<void> showPostRideDialog(BuildContext context, WidgetRef ref) async {
   Station? startStation;
   Station? destinationStation;
   int? selectedSeats;
+
   const primaryColor = Color.fromRGBO(137, 177, 98, 1);
-  await showDialog<bool>(
+
+  await showDialog(
     context: context,
     builder: (context) {
       return GestureDetector(
-        onTap: () {
-          FocusScope.of(context).unfocus();
-        },
+        onTap: () => FocusScope.of(context).unfocus(),
         child: StatefulBuilder(
           builder: (context, setState) {
+            // Station Selector Bottom Sheet
             void showStationSelector({required bool isStart}) {
               final stationsAsync = ref.read(allStationsProvider);
               stationsAsync.whenData((stations) {
@@ -36,16 +37,15 @@ Future<void> showPostRideDialog(BuildContext context, WidgetRef ref) async {
                   context: context,
                   backgroundColor: Colors.white,
                   shape: const RoundedRectangleBorder(
-                    borderRadius: BorderRadius.vertical(
-                      top: Radius.circular(20),
-                    ),
+                    borderRadius:
+                        BorderRadius.vertical(top: Radius.circular(20)),
                   ),
-                  builder: (context) {
+                  builder: (_) {
                     return Column(
                       mainAxisSize: MainAxisSize.min,
                       children: [
+                        const SizedBox(height: 12),
                         Container(
-                          margin: const EdgeInsets.symmetric(vertical: 12),
                           width: 50,
                           height: 5,
                           decoration: BoxDecoration(
@@ -53,36 +53,27 @@ Future<void> showPostRideDialog(BuildContext context, WidgetRef ref) async {
                             borderRadius: BorderRadius.circular(10),
                           ),
                         ),
-                        Padding(
-                          padding: const EdgeInsets.all(16),
-                          child: Text(
-                            "Select Station",
-                            style: GoogleFonts.poppins(
-                              fontSize: 18,
-                              fontWeight: FontWeight.bold,
-                              color: Colors.green,
-                            ),
+                        const SizedBox(height: 8),
+                        Text(
+                          "Select Station",
+                          style: GoogleFonts.poppins(
+                            fontSize: 18,
+                            fontWeight: FontWeight.bold,
+                            color: primaryColor,
                           ),
                         ),
+                        const SizedBox(height: 8),
                         Expanded(
                           child: ListView.separated(
-                            padding: const EdgeInsets.symmetric(
-                              horizontal: 16,
-                              vertical: 8,
-                            ),
                             itemCount: stations.length,
                             separatorBuilder: (_, __) => const Divider(),
                             itemBuilder: (context, index) {
                               final station = stations[index];
                               return ListTile(
-                                leading: const Icon(
-                                  Icons.train,
-                                  color: Colors.black,
-                                ),
-                                title: Text(
-                                  station.name,
-                                  style: GoogleFonts.poppins(),
-                                ),
+                                leading: const Icon(Icons.train,
+                                    color: Colors.black),
+                                title: Text(station.name,
+                                    style: GoogleFonts.poppins()),
                                 onTap: () {
                                   setState(() {
                                     if (isStart) {
@@ -104,6 +95,7 @@ Future<void> showPostRideDialog(BuildContext context, WidgetRef ref) async {
               });
             }
 
+            // Seats Selector
             void showSeatsSelector() {
               showModalBottomSheet(
                 context: context,
@@ -111,72 +103,55 @@ Future<void> showPostRideDialog(BuildContext context, WidgetRef ref) async {
                 shape: const RoundedRectangleBorder(
                   borderRadius: BorderRadius.vertical(top: Radius.circular(20)),
                 ),
-                builder: (context) {
-                  return SingleChildScrollView(
-                    child: Column(
-                      mainAxisSize: MainAxisSize.min,
-                      children: [
-                        // Small handle bar
-                        Container(
-                          margin: const EdgeInsets.symmetric(vertical: 12),
-                          width: 50,
-                          height: 5,
-                          decoration: BoxDecoration(
-                            color: Colors.grey.shade300,
-                            borderRadius: BorderRadius.circular(10),
-                          ),
+                builder: (_) {
+                  return Column(
+                    mainAxisSize: MainAxisSize.min,
+                    children: [
+                      const SizedBox(height: 12),
+                      Container(
+                        width: 50,
+                        height: 5,
+                        decoration: BoxDecoration(
+                          color: Colors.grey.shade300,
+                          borderRadius: BorderRadius.circular(10),
                         ),
-                        Padding(
-                          padding: const EdgeInsets.all(16),
-                          child: Text(
-                            "Select Seats",
-                            style: GoogleFonts.poppins(
-                              fontSize: 18,
-                              fontWeight: FontWeight.bold,
-                              color: Colors.green,
+                      ),
+                      const SizedBox(height: 12),
+                      Text(
+                        "Select Seats",
+                        style: GoogleFonts.poppins(
+                          fontSize: 18,
+                          fontWeight: FontWeight.bold,
+                          color: primaryColor,
+                        ),
+                      ),
+                      ListView.builder(
+                        shrinkWrap: true,
+                        itemCount: 4,
+                        itemBuilder: (context, index) {
+                          final seat = index + 1;
+                          return ListTile(
+                            leading: const Icon(Icons.event_seat),
+                            title: Text(
+                              "$seat Seat${seat > 1 ? 's' : ''}",
+                              style: GoogleFonts.poppins(),
                             ),
-                          ),
-                        ),
-                        ListView.builder(
-                          shrinkWrap: true,
-                          padding: const EdgeInsets.symmetric(
-                            horizontal: 16,
-                            vertical: 8,
-                          ),
-                          itemCount: 4,
-                          itemBuilder: (context, index) {
-                            final seat = index + 1;
-                            return Column(
-                              children: [
-                                ListTile(
-                                  leading: const Icon(
-                                    Icons.event_seat,
-                                    color: Colors.black,
-                                  ),
-                                  title: Text(
-                                    '$seat Seat${seat > 1 ? 's' : ''}',
-                                    style: GoogleFonts.poppins(),
-                                  ),
-                                  onTap: () {
-                                    setState(() {
-                                      selectedSeats = seat;
-                                    });
-                                    Navigator.pop(context);
-                                  },
-                                ),
-                                SizedBox(height: 20),
-                                const Divider(),
-                              ],
-                            );
-                          },
-                        ),
-                      ],
-                    ),
+                            onTap: () {
+                              setState(() {
+                                selectedSeats = seat;
+                              });
+                              Navigator.pop(context);
+                            },
+                          );
+                        },
+                      ),
+                    ],
                   );
                 },
               );
             }
 
+            // DateTime Picker
             void pickDateTime() async {
               final now = DateTime.now();
               final date = await showDatePicker(
@@ -186,11 +161,13 @@ Future<void> showPostRideDialog(BuildContext context, WidgetRef ref) async {
                 lastDate: DateTime(now.year + 1),
               );
               if (date == null) return;
+
               final time = await showTimePicker(
                 context: context,
-                initialTime: TimeOfDay.fromDateTime(now),
+                initialTime: TimeOfDay.now(),
               );
               if (time == null) return;
+
               setState(() {
                 selectedDateTime = DateTime(
                   date.year,
@@ -202,6 +179,7 @@ Future<void> showPostRideDialog(BuildContext context, WidgetRef ref) async {
               });
             }
 
+            // Create Ride
             void createRide() async {
               if (!formKey.currentState!.validate() ||
                   startStation == null ||
@@ -241,16 +219,16 @@ Future<void> showPostRideDialog(BuildContext context, WidgetRef ref) async {
                   );
 
               if (createdRide != null && context.mounted) {
+                // WebSocket
                 ref.read(rideWSControllerProvider(createdRide.id).notifier);
-                print(
-                  "🌐 Driver connected to ride WS for ride ID: ${createdRide.id}",
-                );
+                print("🔌 WS connected for ride ID: ${createdRide.id}");
 
+                // Refresh rides list
                 ref.invalidate(createdRidesProvider(user.userId));
 
                 Navigator.pop(context);
                 ScaffoldMessenger.of(context).showSnackBar(
-                  const SnackBar(content: Text('Ride Created Successfully')),
+                  const SnackBar(content: Text('✅ Ride Created Successfully')),
                 );
               }
             }
@@ -260,102 +238,64 @@ Future<void> showPostRideDialog(BuildContext context, WidgetRef ref) async {
               shape: RoundedRectangleBorder(
                 borderRadius: BorderRadius.circular(20),
               ),
-              content: SizedBox(
-                width: 500,
-                child: SingleChildScrollView(
-                  child: Form(
-                    key: formKey,
-                    child: Column(
-                      crossAxisAlignment: CrossAxisAlignment.start,
-                      children: [
-                        // Text(
-                        //   "Post Ride",
-                        //   style: GoogleFonts.poppins(
-                        //     fontSize: 24,
-                        //     fontWeight: FontWeight.bold,
-                        //     color: primaryColor,
-                        //   ),
-                        // ),
-                        const SizedBox(height: 20),
-
-                        _selectorTile(
-                          label: startStation?.name ?? "Select Start Station",
-                          icon: Icons.location_on_outlined,
-                          onTap: () => showStationSelector(isStart: true),
-                        ),
-                        const SizedBox(height: 12),
-
-                        _selectorTile(
-                          label:
-                              destinationStation?.name ?? "Select Destination",
-                          icon: Icons.flag_outlined,
-                          onTap: () => showStationSelector(isStart: false),
-                        ),
-                        const SizedBox(height: 12),
-
-                        const SizedBox(height: 12),
-
-                        _selectorTile(
-                          label:
-                              selectedSeats == null
-                                  ? "Select Seats"
-                                  : "$selectedSeats Seats",
-                          icon: Icons.event_seat_outlined,
-                          onTap: showSeatsSelector,
-                        ),
-                        const SizedBox(height: 12),
-
-                        _buildInputField(
-                          controller: distanceController,
-                          label: "Distance (km)",
-                          icon: Icons.social_distance,
-                          inputType: TextInputType.number,
-                        ),
-                        const SizedBox(height: 12),
-
-                        ElevatedButton.icon(
-                          onPressed: pickDateTime,
-                          style: ElevatedButton.styleFrom(
-                            padding: const EdgeInsets.symmetric(
-                              horizontal: 10,
-                              vertical: 15,
-                            ),
-                            backgroundColor: primaryColor,
-                            shape: RoundedRectangleBorder(
-                              borderRadius: BorderRadius.circular(12),
-                            ),
-                          ),
-
-                          label: Row(
-                            children: [
-                              SizedBox(width: 5),
-                              const Icon(
-                                Icons.calendar_today,
-                                size: 25,
-                                color: Color.fromARGB(255, 255, 255, 255),
-                              ),
-                              SizedBox(width: 20),
-                              Text(
-                                selectedDateTime == null
-                                    ? 'Pick Date & Time'
-                                    : DateFormat.yMMMd().add_jm().format(
-                                      selectedDateTime!,
-                                    ),
-                                style: GoogleFonts.poppins(
-                                  fontSize: 16,
-                                  color: const Color.fromARGB(
-                                    255,
-                                    255,
-                                    255,
-                                    255,
-                                  ),
-                                ),
-                              ),
-                            ],
+              content: SingleChildScrollView(
+                child: Form(
+                  key: formKey,
+                  child: Column(
+                    mainAxisSize: MainAxisSize.min,
+                    children: [
+                      const SizedBox(height: 8),
+                      _selectorTile(
+                        label: startStation?.name ?? "Select Start Station",
+                        icon: Icons.location_on_outlined,
+                        onTap: () => showStationSelector(isStart: true),
+                      ),
+                      const SizedBox(height: 12),
+                      _selectorTile(
+                        label: destinationStation?.name ?? "Select Destination",
+                        icon: Icons.flag_outlined,
+                        onTap: () => showStationSelector(isStart: false),
+                      ),
+                      const SizedBox(height: 12),
+                      _selectorTile(
+                        label: selectedSeats == null
+                            ? "Select Seats"
+                            : "$selectedSeats Seat${selectedSeats! > 1 ? 's' : ''}",
+                        icon: Icons.event_seat_outlined,
+                        onTap: showSeatsSelector,
+                      ),
+                      const SizedBox(height: 12),
+                      _buildInputField(
+                        controller: distanceController,
+                        label: "Distance (km)",
+                        icon: Icons.social_distance,
+                        inputType: TextInputType.number,
+                      ),
+                      const SizedBox(height: 12),
+                      ElevatedButton.icon(
+                        onPressed: pickDateTime,
+                        style: ElevatedButton.styleFrom(
+                          padding: const EdgeInsets.symmetric(
+                              horizontal: 16, vertical: 14),
+                          backgroundColor: primaryColor,
+                          shape: RoundedRectangleBorder(
+                            borderRadius: BorderRadius.circular(12),
                           ),
                         ),
-                      ],
-                    ),
+                        icon: const Icon(Icons.calendar_month,
+                            color: Colors.white),
+                        label: Text(
+                          selectedDateTime == null
+                              ? 'Pick Date & Time'
+                              : DateFormat('EEE, MMM d • h:mm a')
+                                  .format(selectedDateTime!),
+                          style: GoogleFonts.poppins(
+                            fontSize: 16,
+                            color: Colors.white,
+                          ),
+                        ),
+                      ),
+                    ],
                   ),
                 ),
               ),
@@ -365,7 +305,7 @@ Future<void> showPostRideDialog(BuildContext context, WidgetRef ref) async {
                   child: Text(
                     'Cancel',
                     style: GoogleFonts.poppins(
-                      fontWeight: FontWeight.bold,
+                      fontWeight: FontWeight.w500,
                       color: Colors.black54,
                     ),
                   ),
@@ -373,11 +313,9 @@ Future<void> showPostRideDialog(BuildContext context, WidgetRef ref) async {
                 ElevatedButton(
                   onPressed: createRide,
                   style: ElevatedButton.styleFrom(
+                    backgroundColor: Colors.black87,
                     padding: const EdgeInsets.symmetric(
-                      horizontal: 20,
-                      vertical: 14,
-                    ),
-                    backgroundColor: Colors.black54,
+                        horizontal: 20, vertical: 14),
                     shape: RoundedRectangleBorder(
                       borderRadius: BorderRadius.circular(14),
                     ),
@@ -385,7 +323,7 @@ Future<void> showPostRideDialog(BuildContext context, WidgetRef ref) async {
                   child: Text(
                     "Post Ride",
                     style: GoogleFonts.poppins(
-                      fontWeight: FontWeight.bold,
+                      fontWeight: FontWeight.w600,
                       color: Colors.white,
                     ),
                   ),
@@ -399,7 +337,7 @@ Future<void> showPostRideDialog(BuildContext context, WidgetRef ref) async {
   );
 }
 
-// Reusable Input Field
+// 🔧 Reusable Input Field
 Widget _buildInputField({
   required TextEditingController controller,
   required String label,
@@ -423,7 +361,7 @@ Widget _buildInputField({
   );
 }
 
-// Reusable Selector Tile Widget
+// 🔧 Reusable Selector Tile
 Widget _selectorTile({
   required String label,
   required IconData icon,
@@ -434,6 +372,7 @@ Widget _selectorTile({
     onTap: onTap,
     borderRadius: BorderRadius.circular(12),
     child: Container(
+      width: double.infinity,
       padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 18),
       decoration: BoxDecoration(
         border: Border.all(color: Colors.grey.shade300),

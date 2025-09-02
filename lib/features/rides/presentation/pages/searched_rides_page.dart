@@ -55,14 +55,12 @@ class _SearchedRidesPageState extends ConsumerState<SearchedRidesPage>
     required BuildContext context,
   }) async {
     try {
-      // Show loading
       showDialog(
         context: context,
         barrierDismissible: false,
         builder: (_) => const Center(child: CircularProgressIndicator()),
       );
 
-      // Send ride request to backend
       await ref
           .read(rideControllerProvider.notifier)
           .requestRide(ride: ride, fromUser: fromUser, ref: ref);
@@ -70,12 +68,10 @@ class _SearchedRidesPageState extends ConsumerState<SearchedRidesPage>
       if (!mounted) return;
       Navigator.pop(context);
 
-      // Mark ride as requested locally
       setState(() {
         _requestedRides.add(ride);
       });
 
-      // ✅ Setup WS + notification listener safely using listenManual
       ref.listenManual<String>(passengerRideWSProvider(ride.toString()), (
         previous,
         next,
@@ -89,7 +85,6 @@ class _SearchedRidesPageState extends ConsumerState<SearchedRidesPage>
         }
       });
 
-      // Success message
       ScaffoldMessenger.of(context).showSnackBar(
         const SnackBar(content: Text('🎯 Ride request sent successfully!')),
       );
@@ -113,83 +108,85 @@ class _SearchedRidesPageState extends ConsumerState<SearchedRidesPage>
     return Scaffold(
       backgroundColor: backgroundColor,
       body: SafeArea(
-        child: SingleChildScrollView(
-          physics: const BouncingScrollPhysics(),
+        child: Padding(
+          padding: const EdgeInsets.only(bottom: 20),
           child: Column(
             crossAxisAlignment: CrossAxisAlignment.start,
             children: [
               _topBar(context, primaryColor),
+              const SizedBox(height: 10),
+              Expanded(
+                child: ridesAsyncValue.when(
+                  loading: () =>
+                      const Center(child: CircularProgressIndicator()),
+                  error: (e, st) =>
+                      Center(child: Text("Error: ${e.toString()}")),
+                  data: (rides) {
+                    final filteredRides = rides.where((ride) {
+                      return ride.startLocation == widget.fromStation.id &&
+                          ride.endLocation == widget.toStation.id &&
+                          ride.seats >= widget.seats;
+                    }).toList();
 
-              ridesAsyncValue.when(
-                loading: () => const Center(child: CircularProgressIndicator()),
-                error: (e, st) => Center(child: Text("Error: ${e.toString()}")),
-                data: (rides) {
-                  final filteredRides =
-                      rides.where((ride) {
-                        return ride.startLocation == widget.fromStation.id &&
-                            ride.endLocation == widget.toStation.id &&
-                            ride.seats >= widget.seats;
-                      }).toList();
+                    if (filteredRides.isEmpty) {
+                      return const Center(child: Text('No rides found!'));
+                    }
 
-                  if (filteredRides.isEmpty) {
-                    return const Center(child: Text('No rides found!'));
-                  }
+                    return ListView.builder(
+                      itemCount: filteredRides.length,
+                      physics: const BouncingScrollPhysics(),
+                      padding: const EdgeInsets.only(top: 10),
+                      itemBuilder: (context, index) {
+                        final ride = filteredRides[index];
 
-                  return Column(
-                    children:
-                        filteredRides.map((ride) {
-                          final fromStationFuture = ref.watch(
-                            stationByIdProvider(ride.startLocation),
-                          );
-                          final toStationFuture = ref.watch(
-                            stationByIdProvider(ride.endLocation),
-                          );
+                        final fromStationFuture =
+                            ref.watch(stationByIdProvider(ride.startLocation));
+                        final toStationFuture =
+                            ref.watch(stationByIdProvider(ride.endLocation));
 
-                          return fromStationFuture.when(
-                            loading: () => const _LoadingCard(),
-                            error: (e, st) => const _ErrorCard(),
-                            data: (fromStation) {
-                              return toStationFuture.when(
-                                loading: () => const _LoadingCard(),
-                                error: (e, st) => const _ErrorCard(),
-                                data: (toStation) {
-                                  return GestureDetector(
-                                    onTap: () {
-                                      Navigator.push(
-                                        context,
-                                        MaterialPageRoute(
-                                          builder:
-                                              (context) =>
-                                                  RideDetailsPage(ride: ride),
-                                        ),
-                                      );
-                                    },
-                                    child: _RideCard(
-                                      vehicle: ride.vehicle,
-                                      from: fromStation.name,
-                                      to: toStation.name,
-                                      dateTime: ride.startTime,
-                                      driverName: ride.vehicle.toString(),
-                                      cardColor: cardColor,
-                                      primaryColor: primaryColor,
-                                      isRequested: _requestedRides.contains(
-                                        ride.id,
+                        return fromStationFuture.when(
+                          loading: () => const _LoadingCard(),
+                          error: (e, st) => const _ErrorCard(),
+                          data: (fromStation) {
+                            return toStationFuture.when(
+                              loading: () => const _LoadingCard(),
+                              error: (e, st) => const _ErrorCard(),
+                              data: (toStation) {
+                                return GestureDetector(
+                                  onTap: () {
+                                    Navigator.push(
+                                      context,
+                                      MaterialPageRoute(
+                                        builder: (context) =>
+                                            RideDetailsPage(ride: ride),
                                       ),
-                                      onRequest:
-                                          () => requestRide(
-                                            ride: ride.id.toInt(),
-                                            fromUser: user.userId,
-                                            context: context,
-                                          ),
+                                    );
+                                  },
+                                  child: _RideCard(
+                                    vehicle: ride.vehicle,
+                                    from: fromStation.name,
+                                    to: toStation.name,
+                                    dateTime: ride.startTime,
+                                    driverName: ride.vehicle.toString(),
+                                    cardColor: cardColor,
+                                    primaryColor: primaryColor,
+                                    isRequested:
+                                        _requestedRides.contains(ride.id),
+                                    onRequest: () => requestRide(
+                                      ride: ride.id.toInt(),
+                                      fromUser: user.userId,
+                                      context: context,
                                     ),
-                                  );
-                                },
-                              );
-                            },
-                          );
-                        }).toList(),
-                  );
-                },
+                                  ),
+                                );
+                              },
+                            );
+                          },
+                        );
+                      },
+                    );
+                  },
+                ),
               ),
             ],
           ),
@@ -200,7 +197,9 @@ class _SearchedRidesPageState extends ConsumerState<SearchedRidesPage>
 
   Widget _topBar(BuildContext context, Color primaryColor) {
     return Padding(
-      padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 16),
+      padding: const EdgeInsets.symmetric(
+        horizontal: 16,
+      ),
       child: Row(
         children: [
           IconButton(
@@ -217,9 +216,7 @@ class _SearchedRidesPageState extends ConsumerState<SearchedRidesPage>
               textAlign: TextAlign.center,
             ),
           ),
-          const SizedBox(
-            width: 48,
-          ), // keep same width as back button to center title
+          const SizedBox(width: 48),
         ],
       ),
     );
@@ -259,7 +256,7 @@ class _RideCard extends StatelessWidget {
         color: cardColor,
         elevation: 6,
         shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
-        margin: const EdgeInsets.symmetric(vertical: 10, horizontal: 0),
+        margin: const EdgeInsets.symmetric(vertical: 10),
         child: Padding(
           padding: const EdgeInsets.all(20),
           child: Column(
@@ -280,19 +277,13 @@ class _RideCard extends StatelessWidget {
               ),
               const SizedBox(height: 12),
               Row(
-                crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
-                  Icon(
-                    Icons.directions_car_rounded,
-                    size: 22,
-                    color: primaryColor,
-                  ),
+                  Icon(Icons.directions_car_rounded, color: primaryColor),
                   const SizedBox(width: 8),
                   Consumer(
                     builder: (context, ref, _) {
-                      final vehicleAsync = ref.watch(
-                        vehicleByIdProvider(vehicle),
-                      );
+                      final vehicleAsync =
+                          ref.watch(vehicleByIdProvider(vehicle));
                       return vehicleAsync.when(
                         data: (vehicle) {
                           return Text(
@@ -304,14 +295,13 @@ class _RideCard extends StatelessWidget {
                             ),
                           );
                         },
-                        loading: () => const SizedBox(),
+                        loading: () => const Text('Loading vehicle...'),
                         error: (e, st) => const Text('Error loading vehicle'),
                       );
                     },
                   ),
                 ],
               ),
-
               const SizedBox(height: 12),
               SizedBox(
                 width: double.infinity,
@@ -344,14 +334,14 @@ class _LoadingCard extends StatelessWidget {
   const _LoadingCard();
 
   @override
-  Widget build(BuildContext context) =>
-      const Center(child: CircularProgressIndicator());
+  Widget build(BuildContext context) => const Padding(
+      padding: EdgeInsets.all(20), child: CircularProgressIndicator());
 }
 
 class _ErrorCard extends StatelessWidget {
   const _ErrorCard();
 
   @override
-  Widget build(BuildContext context) =>
-      const Center(child: Text("Error loading station"));
+  Widget build(BuildContext context) => const Padding(
+      padding: EdgeInsets.all(20), child: Text("Error loading station"));
 }

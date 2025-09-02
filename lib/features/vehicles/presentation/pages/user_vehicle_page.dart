@@ -37,9 +37,9 @@ class _VehiclePageState extends ConsumerState<VehiclePage> {
     if (_formKey.currentState!.validate()) {
       final user = ref.read(authNotifierProvider).user;
       if (user == null) {
-        ScaffoldMessenger.of(
-          context,
-        ).showSnackBar(const SnackBar(content: Text('User not logged in')));
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(content: Text('User not logged in')),
+        );
         return;
       }
 
@@ -63,6 +63,9 @@ class _VehiclePageState extends ConsumerState<VehiclePage> {
     final state = ref.watch(vehicleControllerProvider);
     final vehicle = state.vehicle;
 
+    final screenWidth = MediaQuery.of(context).size.width;
+    final isTablet = screenWidth > 600;
+
     const backgroundColor = Color(0xFFF5F7FF);
     const primaryColor = Color.fromRGBO(137, 177, 98, 1);
     const cardColor = Colors.white;
@@ -70,29 +73,30 @@ class _VehiclePageState extends ConsumerState<VehiclePage> {
     return Scaffold(
       backgroundColor: backgroundColor,
       body: SafeArea(
-        child:
-            state.isLoading
-                ? const Center(child: CircularProgressIndicator())
-                : Padding(
-                  padding: const EdgeInsets.all(20),
-                  child:
-                      vehicle != null
-                          ? _buildVehicleDetails(
-                            vehicle,
-                            cardColor,
-                            primaryColor,
-                          )
-                          : _buildVehicleForm(primaryColor),
+        child: state.isLoading
+            ? const Center(child: CircularProgressIndicator())
+            : SingleChildScrollView(
+                padding: EdgeInsets.symmetric(
+                  horizontal: isTablet ? 40 : 20,
+                  vertical: 24,
                 ),
+                child: Center(
+                  child: ConstrainedBox(
+                    constraints: const BoxConstraints(maxWidth: 700),
+                    child: vehicle != null
+                        ? _buildVehicleDetails(
+                            vehicle, cardColor, primaryColor, isTablet)
+                        : _buildVehicleForm(primaryColor, isTablet),
+                  ),
+                ),
+              ),
       ),
     );
   }
 
-  Widget _buildVehicleForm(Color primaryColor) {
+  Widget _buildVehicleForm(Color primaryColor, bool isTablet) {
     return GestureDetector(
-      onTap: () {
-        FocusScope.of(context).unfocus();
-      },
+      onTap: () => FocusScope.of(context).unfocus(),
       child: Container(
         padding: const EdgeInsets.all(20),
         decoration: BoxDecoration(
@@ -110,67 +114,39 @@ class _VehiclePageState extends ConsumerState<VehiclePage> {
           key: _formKey,
           child: ListView(
             shrinkWrap: true,
+            physics: const NeverScrollableScrollPhysics(),
             children: [
-              const SizedBox(height: 16),
               _buildFormField(
-                "Vehicle Type",
-                FontAwesomeIcons.car,
-                _vehicleTypeController,
-              ),
-              const SizedBox(height: 16),
+                  "Vehicle Type", FontAwesomeIcons.car, _vehicleTypeController),
+              _buildFormField("Vehicle Model", FontAwesomeIcons.cogs,
+                  _vehicleModelController),
+              _buildFormField("Vehicle Year", FontAwesomeIcons.calendar,
+                  _vehicleYearController,
+                  isNumber: true),
               _buildFormField(
-                "Vehicle Model",
-                FontAwesomeIcons.cogs,
-                _vehicleModelController,
-              ),
-              const SizedBox(height: 16),
-              _buildFormField(
-                "Vehicle Year",
-                FontAwesomeIcons.calendar,
-                _vehicleYearController,
-                isNumber: true,
-              ),
-              const SizedBox(height: 16),
-              _buildFormField(
-                "Color",
-                FontAwesomeIcons.palette,
-                _vehicleColorController,
-              ),
-              const SizedBox(height: 16),
-              _buildFormField(
-                "License Plate",
-                FontAwesomeIcons.idCard,
-                _vehicleLicensePlateController,
-              ),
-              const SizedBox(height: 16),
-              _buildFormField(
-                "Engine Type",
-                FontAwesomeIcons.bolt,
-                _vehicleEngineTypeController,
-              ),
-              const SizedBox(height: 24),
-              SizedBox(
-                width: double.infinity,
-                child: ElevatedButton(
-                  onPressed: _submit,
-                  style: ElevatedButton.styleFrom(
-                    backgroundColor: primaryColor,
-                    shape: RoundedRectangleBorder(
-                      borderRadius: BorderRadius.circular(12),
-                    ),
-                    padding: const EdgeInsets.symmetric(vertical: 16),
-                  ),
-                  child: Text(
-                    'Save Vehicle',
-                    style: GoogleFonts.poppins(
-                      fontSize: 18,
-                      fontWeight: FontWeight.w600,
-                      color: Colors.white,
-                    ),
+                  "Color", FontAwesomeIcons.palette, _vehicleColorController),
+              _buildFormField("License Plate", FontAwesomeIcons.idCard,
+                  _vehicleLicensePlateController),
+              _buildFormField("Engine Type", FontAwesomeIcons.bolt,
+                  _vehicleEngineTypeController),
+              const SizedBox(height: 20),
+              ElevatedButton(
+                onPressed: _submit,
+                style: ElevatedButton.styleFrom(
+                  backgroundColor: primaryColor,
+                  padding: const EdgeInsets.symmetric(vertical: 16),
+                  shape: RoundedRectangleBorder(
+                      borderRadius: BorderRadius.circular(12)),
+                ),
+                child: Text(
+                  'Save Vehicle',
+                  style: GoogleFonts.poppins(
+                    fontSize: isTablet ? 18 : 16,
+                    fontWeight: FontWeight.w600,
+                    color: Colors.white,
                   ),
                 ),
               ),
-              const SizedBox(height: 30),
             ],
           ),
         ),
@@ -186,43 +162,43 @@ class _VehiclePageState extends ConsumerState<VehiclePage> {
   }) {
     const primaryColor = Color.fromRGBO(137, 177, 98, 1);
 
-    return Container(
-      margin: const EdgeInsets.symmetric(vertical: 12),
-      decoration: BoxDecoration(
-        color: Colors.white.withOpacity(0.5),
-        borderRadius: BorderRadius.circular(16),
-        border: Border.all(color: Colors.white.withOpacity(0.3)),
-        boxShadow: [
-          BoxShadow(
-            color: Colors.black.withOpacity(0.1),
-            blurRadius: 10,
-            offset: const Offset(0, 5),
-          ),
-        ],
-      ),
-      child: TextFormField(
-        controller: controller,
-        keyboardType: isNumber ? TextInputType.number : TextInputType.text,
-        style: GoogleFonts.poppins(fontSize: 16),
-        validator:
-            (value) => value == null || value.isEmpty ? 'Enter $label' : null,
-        decoration: InputDecoration(
-          contentPadding: const EdgeInsets.symmetric(
-            vertical: 20,
-            horizontal: 16,
-          ),
-          prefixIcon: Icon(icon, color: primaryColor),
-          hintText: label,
-          hintStyle: GoogleFonts.poppins(color: primaryColor),
-          filled: true,
-          fillColor: Colors.transparent, // because container has background
-          border: OutlineInputBorder(
-            borderRadius: BorderRadius.circular(16),
-            borderSide: BorderSide.none,
-          ),
-          focusedBorder: OutlineInputBorder(
-            borderRadius: BorderRadius.circular(16),
-            borderSide: BorderSide(color: primaryColor, width: 1.5),
+    return Padding(
+      padding: const EdgeInsets.symmetric(vertical: 10),
+      child: Container(
+        decoration: BoxDecoration(
+          color: Colors.white.withOpacity(0.5),
+          borderRadius: BorderRadius.circular(16),
+          border: Border.all(color: Colors.white.withOpacity(0.3)),
+          boxShadow: [
+            BoxShadow(
+              color: Colors.black.withOpacity(0.06),
+              blurRadius: 8,
+              offset: const Offset(0, 4),
+            ),
+          ],
+        ),
+        child: TextFormField(
+          controller: controller,
+          keyboardType: isNumber ? TextInputType.number : TextInputType.text,
+          style: GoogleFonts.poppins(fontSize: 16),
+          validator: (value) =>
+              value == null || value.isEmpty ? 'Enter $label' : null,
+          decoration: InputDecoration(
+            contentPadding:
+                const EdgeInsets.symmetric(vertical: 18, horizontal: 16),
+            prefixIcon: Icon(icon, color: primaryColor),
+            hintText: label,
+            hintStyle: GoogleFonts.poppins(color: primaryColor),
+            filled: true,
+            fillColor: Colors.transparent,
+            border: OutlineInputBorder(
+              borderRadius: BorderRadius.circular(16),
+              borderSide: BorderSide.none,
+            ),
+            focusedBorder: OutlineInputBorder(
+              borderRadius: BorderRadius.circular(16),
+              borderSide: BorderSide(color: primaryColor, width: 1.5),
+            ),
           ),
         ),
       ),
@@ -233,9 +209,9 @@ class _VehiclePageState extends ConsumerState<VehiclePage> {
     Vehicle vehicle,
     Color cardColor,
     Color primaryColor,
+    bool isTablet,
   ) {
     return Container(
-      height: 700,
       padding: const EdgeInsets.all(20),
       decoration: BoxDecoration(
         color: cardColor,
@@ -248,84 +224,35 @@ class _VehiclePageState extends ConsumerState<VehiclePage> {
           ),
         ],
       ),
-      child: ListView(
+      child: Column(
         children: [
-          _buildProfileItem(
-            icon: FontAwesomeIcons.car,
-            label: "Type",
-            value: vehicle.vehicleType,
-            color: primaryColor,
-          ),
-          const SizedBox(height: 10),
-          _buildProfileItem(
-            icon: FontAwesomeIcons.cogs,
-            label: "Model",
-            value: vehicle.vehicleModel,
-            color: primaryColor,
-          ),
-          const SizedBox(height: 10),
-          _buildProfileItem(
-            icon: FontAwesomeIcons.calendar,
-            label: "Year",
-            value: vehicle.vehicleYear.toString(),
-            color: primaryColor,
-          ),
-          const SizedBox(height: 10),
-          _buildProfileItem(
-            icon: FontAwesomeIcons.palette,
-            label: "Color",
-            value: vehicle.vehicleColor,
-            color: primaryColor,
-          ),
-          const SizedBox(height: 10),
-          _buildProfileItem(
-            icon: FontAwesomeIcons.idCard,
-            label: "Liscence Plate",
-            value: vehicle.vehicleLicensePlate,
-            color: primaryColor,
-          ),
-          const SizedBox(height: 10),
-          _buildProfileItem(
-            icon: FontAwesomeIcons.bolt,
-            label: "Engine",
-            value: vehicle.vehicleEngineType,
-            color: primaryColor,
-          ),
-          const SizedBox(height: 10),
-          // SizedBox(
-          //   width: double.infinity,
-          //   child: ElevatedButton(
-          //     onPressed: () {},
-          //     style: ElevatedButton.styleFrom(
-          //       backgroundColor: primaryColor,
-          //       shape: RoundedRectangleBorder(
-          //         borderRadius: BorderRadius.circular(12),
-          //       ),
-          //       padding: const EdgeInsets.symmetric(vertical: 16),
-          //     ),
-          //     child: Text(
-          //       'Edit Vehicle',
-          //       style: GoogleFonts.poppins(
-          //         fontSize: 18,
-          //         fontWeight: FontWeight.w600,
-          //         color: Colors.white,
-          //       ),
-          //     ),
-          //   ),
-          // ),
+          _buildProfileItem(FontAwesomeIcons.car, "Type", vehicle.vehicleType,
+              primaryColor, isTablet),
+          _buildProfileItem(FontAwesomeIcons.cogs, "Model",
+              vehicle.vehicleModel, primaryColor, isTablet),
+          _buildProfileItem(FontAwesomeIcons.calendar, "Year",
+              vehicle.vehicleYear.toString(), primaryColor, isTablet),
+          _buildProfileItem(FontAwesomeIcons.palette, "Color",
+              vehicle.vehicleColor, primaryColor, isTablet),
+          _buildProfileItem(FontAwesomeIcons.idCard, "License Plate",
+              vehicle.vehicleLicensePlate, primaryColor, isTablet),
+          _buildProfileItem(FontAwesomeIcons.bolt, "Engine",
+              vehicle.vehicleEngineType, primaryColor, isTablet),
         ],
       ),
     );
   }
 
-  Widget _buildProfileItem({
-    required IconData icon,
-    required String label,
-    required String value,
-    required Color color,
-  }) {
+  Widget _buildProfileItem(
+    IconData icon,
+    String label,
+    String value,
+    Color color,
+    bool isTablet,
+  ) {
     return Container(
-      padding: const EdgeInsets.symmetric(vertical: 11, horizontal: 15),
+      margin: const EdgeInsets.symmetric(vertical: 10),
+      padding: const EdgeInsets.symmetric(vertical: 12, horizontal: 16),
       decoration: BoxDecoration(
         color: const Color(0xFFF1F2F6),
         borderRadius: BorderRadius.circular(14),
@@ -338,7 +265,7 @@ class _VehiclePageState extends ConsumerState<VehiclePage> {
               color: color.withOpacity(0.1),
               borderRadius: BorderRadius.circular(12),
             ),
-            child: Icon(icon, color: color, size: 25),
+            child: Icon(icon, color: color, size: isTablet ? 24 : 20),
           ),
           const SizedBox(width: 14),
           Expanded(
@@ -348,7 +275,7 @@ class _VehiclePageState extends ConsumerState<VehiclePage> {
                 Text(
                   label,
                   style: GoogleFonts.poppins(
-                    fontSize: 12,
+                    fontSize: isTablet ? 13.5 : 12,
                     fontWeight: FontWeight.w500,
                     color: Colors.grey[600],
                   ),
@@ -357,7 +284,7 @@ class _VehiclePageState extends ConsumerState<VehiclePage> {
                 Text(
                   value,
                   style: GoogleFonts.poppins(
-                    fontSize: 14,
+                    fontSize: isTablet ? 16.5 : 14,
                     fontWeight: FontWeight.w600,
                     color: Colors.black87,
                   ),

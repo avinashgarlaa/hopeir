@@ -23,8 +23,6 @@ class _MainScreenState extends ConsumerState<MainScreen> {
   void _onTabTapped(int index) {
     setState(() {
       _selectedIndex = index;
-
-      // Clear the unread flag when entering the Requests page
       if (index == 2) {
         ref.read(hasUnreadRequestsProvider.notifier).state = false;
       }
@@ -55,8 +53,6 @@ class _MainScreenState extends ConsumerState<MainScreen> {
   @override
   void initState() {
     super.initState();
-
-    // Initialize the WebSocket controller to avoid delay-triggering
     Future.microtask(() {
       final userId = ref.read(authNotifierProvider).user!.userId;
       ref.read(rideRequestWSControllerProvider(userId.toString()));
@@ -65,20 +61,24 @@ class _MainScreenState extends ConsumerState<MainScreen> {
 
   @override
   Widget build(BuildContext context) {
+    final screenHeight = MediaQuery.of(context).size.height;
+    final bottomPadding = MediaQuery.of(context).viewPadding.bottom;
+
     return Scaffold(
       backgroundColor: backgroundColor,
       body: Stack(
         children: [
           _getPage(_selectedIndex),
           Positioned(
-            left: 24,
-            right: 24,
-            bottom: 16,
+            left: 20,
+            right: 20,
+            bottom: bottomPadding,
             child: _FancyBottomNavigationBar(
               selectedIndex: _selectedIndex,
               onTabSelected: _onTabTapped,
               darkBlue: darkBlue,
               tealAccent: tealAccent,
+              height: screenHeight * 0.09,
             ),
           ),
         ],
@@ -92,12 +92,14 @@ class _FancyBottomNavigationBar extends ConsumerWidget {
   final Function(int) onTabSelected;
   final Color darkBlue;
   final Color tealAccent;
+  final double height;
 
   const _FancyBottomNavigationBar({
     required this.selectedIndex,
     required this.onTabSelected,
     required this.darkBlue,
     required this.tealAccent,
+    required this.height,
   });
 
   @override
@@ -105,8 +107,8 @@ class _FancyBottomNavigationBar extends ConsumerWidget {
     final hasUnreadRequests = ref.watch(hasUnreadRequestsProvider);
 
     return Container(
-      height: 70,
-      padding: const EdgeInsets.symmetric(horizontal: 8),
+      height: height.clamp(70, 90), // responsive height between 60-80
+      padding: const EdgeInsets.symmetric(horizontal: 5),
       decoration: BoxDecoration(
         color: Colors.white,
         borderRadius: BorderRadius.circular(36),
@@ -157,10 +159,8 @@ class _FancyBottomNavigationBar extends ConsumerWidget {
 
     Widget gradientIcon(Icon icon) {
       return ShaderMask(
-        shaderCallback:
-            (bounds) => gradient.createShader(
-              Rect.fromLTWH(0, 0, bounds.width, bounds.height),
-            ),
+        shaderCallback: (bounds) => gradient
+            .createShader(Rect.fromLTWH(0, 0, bounds.width, bounds.height)),
         child: icon,
       );
     }
@@ -171,7 +171,7 @@ class _FancyBottomNavigationBar extends ConsumerWidget {
         children: [
           AnimatedContainer(
             duration: const Duration(milliseconds: 250),
-            padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 10),
+            padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 10),
             decoration: BoxDecoration(
               color:
                   isSelected ? darkBlue.withOpacity(0.05) : Colors.transparent,
@@ -181,21 +181,17 @@ class _FancyBottomNavigationBar extends ConsumerWidget {
               mainAxisSize: MainAxisSize.min,
               children: [
                 isSelected
-                    ? gradientIcon(Icon(icon, size: 20, color: Colors.white))
-                    : Icon(
-                      icon,
-                      size: 22,
-                      color: Colors.black.withOpacity(0.4),
-                    ),
+                    ? gradientIcon(Icon(icon, size: 15, color: Colors.white))
+                    : Icon(icon,
+                        size: 18, color: Colors.black.withOpacity(0.4)),
                 const SizedBox(height: 4),
                 Text(
                   label,
                   style: TextStyle(
                     fontSize: 12,
-                    color:
-                        isSelected
-                            ? const Color.fromARGB(255, 97, 147, 46)
-                            : Colors.black.withOpacity(0.5),
+                    color: isSelected
+                        ? const Color.fromARGB(255, 97, 147, 46)
+                        : Colors.black.withOpacity(0.5),
                     fontWeight:
                         isSelected ? FontWeight.bold : FontWeight.normal,
                   ),

@@ -37,13 +37,15 @@ class _RideCardState extends ConsumerState<RideCard> {
     final fromStationAsync = ref.watch(stationByIdProvider(ride.startLocation));
     final toStationAsync = ref.watch(stationByIdProvider(ride.endLocation));
 
-    final formattedDate = DateFormat('dd MMM, hh:mm a').format(ride.startTime);
+    final formattedDate =
+        DateFormat('EEE, MMM d | h:mm a').format(ride.startTime);
+
     final showStart = status == "pending" || status == "scheduled";
     final showEnd = status == "ongoing";
     final showCancel = ["pending", "scheduled", "ongoing"].contains(status);
 
     return Container(
-      margin: const EdgeInsets.symmetric(horizontal: 16, vertical: 14),
+      margin: const EdgeInsets.symmetric(horizontal: 16, vertical: 10),
       padding: const EdgeInsets.all(20),
       decoration: BoxDecoration(
         color: Colors.white,
@@ -51,7 +53,7 @@ class _RideCardState extends ConsumerState<RideCard> {
         boxShadow: const [
           BoxShadow(
             color: Colors.black12,
-            blurRadius: 12,
+            blurRadius: 10,
             offset: Offset(0, 4),
           ),
         ],
@@ -59,11 +61,11 @@ class _RideCardState extends ConsumerState<RideCard> {
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          /// 🔼 Route Header
+          /// 🚏 Route Display
           Row(
             crossAxisAlignment: CrossAxisAlignment.start,
             children: [
-              const Icon(Icons.alt_route_rounded, color: Colors.indigo),
+              const Icon(Icons.alt_route_rounded, color: Colors.deepPurple),
               const SizedBox(width: 10),
               Expanded(
                 child: Column(
@@ -71,7 +73,7 @@ class _RideCardState extends ConsumerState<RideCard> {
                   children: [
                     _buildAsyncText(fromStationAsync, (s) => s.name),
                     const SizedBox(height: 2),
-                    const Icon(Icons.keyboard_arrow_down_rounded, size: 18),
+                    const Icon(Icons.arrow_downward_rounded, size: 16),
                     const SizedBox(height: 2),
                     _buildAsyncText(toStationAsync, (s) => s.name),
                   ],
@@ -83,20 +85,16 @@ class _RideCardState extends ConsumerState<RideCard> {
 
           const SizedBox(height: 16),
 
-          /// 🗓 Date and Time
+          /// 🕓 Date & Time
           Row(
             children: [
-              const Icon(
-                Icons.calendar_today_rounded,
-                size: 18,
-                color: Colors.grey,
-              ),
-              const SizedBox(width: 8),
+              const Icon(Icons.access_time, size: 18, color: Colors.grey),
+              const SizedBox(width: 6),
               Text(
                 formattedDate,
                 style: GoogleFonts.poppins(
                   fontSize: 14,
-                  color: Colors.grey.shade800,
+                  color: Colors.black87,
                 ),
               ),
             ],
@@ -107,20 +105,19 @@ class _RideCardState extends ConsumerState<RideCard> {
           /// 🚗 Vehicle Info
           Row(
             children: [
-              Icon(Icons.directions_car_rounded, color: widget.primaryColor),
+              Icon(Icons.directions_car, color: widget.primaryColor),
               const SizedBox(width: 8),
               Expanded(
                 child: _buildAsyncText(vehicleAsync, (v) {
-                  return '${v.vehicleType} ${v.vehicleModel} '
-                      '(${v.vehicleLicensePlate}) • ${v.vehicleColor}';
+                  return '${v.vehicleModel} (${v.vehicleLicensePlate}) • ${v.vehicleColor}';
                 }),
               ),
             ],
           ),
 
-          const SizedBox(height: 20),
+          const SizedBox(height: 18),
 
-          /// 🧭 Action Buttons
+          /// 🎯 Action Buttons
           Row(
             mainAxisAlignment: MainAxisAlignment.spaceEvenly,
             children: [
@@ -134,7 +131,7 @@ class _RideCardState extends ConsumerState<RideCard> {
     );
   }
 
-  /// 🎯 Stylish Status Badge
+  /// 🔖 Status Badge
   Widget _statusBadge(String status) {
     final color = _getStatusColor(status);
     final icon = _getStatusIcon(status);
@@ -142,15 +139,15 @@ class _RideCardState extends ConsumerState<RideCard> {
     return Container(
       padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
       decoration: BoxDecoration(
-        color: color.withOpacity(0.12),
+        color: color.withOpacity(0.1),
         borderRadius: BorderRadius.circular(20),
         border: Border.all(color: color.withOpacity(0.3)),
       ),
       child: Row(
         mainAxisSize: MainAxisSize.min,
         children: [
-          Icon(icon, size: 16, color: color),
-          const SizedBox(width: 5),
+          Icon(icon, size: 14, color: color),
+          const SizedBox(width: 4),
           Text(
             _capitalize(status),
             style: GoogleFonts.poppins(
@@ -164,61 +161,55 @@ class _RideCardState extends ConsumerState<RideCard> {
     );
   }
 
-  /// 🟢 Start / End / Cancel Buttons
+  /// 🚦 Action Buttons (Start/End/Cancel)
   Widget _buildActionButton(String label, Color color) {
     return ElevatedButton.icon(
-      onPressed:
-          _actionInProgress
-              ? null
-              : () {
-                setState(() => _actionInProgress = true);
-                ref
-                    .read(rideWSControllerProvider(widget.ride.id).notifier)
-                    .sendAction(label.toLowerCase());
+      onPressed: _actionInProgress
+          ? null
+          : () async {
+              setState(() => _actionInProgress = true);
+              await ref
+                  .read(rideWSControllerProvider(widget.ride.id).notifier)
+                  .sendAction(label.toLowerCase());
+              if (mounted) {
                 setState(() => _actionInProgress = false);
-                widget.onActionCompleted();
-              },
+              }
+              widget.onActionCompleted();
+            },
       icon: Icon(_getActionIcon(label), size: 18),
-      label: Text(label, style: GoogleFonts.poppins(fontSize: 15)),
+      label: Text(label, style: GoogleFonts.poppins(fontSize: 14)),
       style: ElevatedButton.styleFrom(
         foregroundColor: Colors.white,
         backgroundColor: color,
-        padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 12),
-        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(14)),
+        padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
+        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
       ),
     );
   }
 
-  /// 🔤 Capitalize status
-  String _capitalize(String s) {
-    return s.isEmpty ? s : s[0].toUpperCase() + s.substring(1).toLowerCase();
-  }
-
-  /// 📦 Async Text Builder
+  /// 🌐 Async Data Handler
   Widget _buildAsyncText<T>(
     AsyncValue<T> asyncValue,
     String Function(T) builder,
   ) {
     return asyncValue.when(
-      data:
-          (value) => Text(
-            builder(value),
-            style: GoogleFonts.poppins(
-              fontSize: 16,
-              fontWeight: FontWeight.w600,
-              color: Colors.black87,
-            ),
-          ),
+      data: (value) => Text(
+        builder(value),
+        style: GoogleFonts.poppins(
+          fontSize: 16,
+          fontWeight: FontWeight.w600,
+          color: Colors.black87,
+        ),
+      ),
       loading: () => _shimmerText(width: 120),
-      error:
-          (_, __) => Text(
-            "Unavailable",
-            style: GoogleFonts.poppins(color: Colors.redAccent),
-          ),
+      error: (_, __) => Text(
+        "Unavailable",
+        style: GoogleFonts.poppins(color: Colors.redAccent),
+      ),
     );
   }
 
-  /// 🌫 Loading placeholder
+  /// 💫 Shimmer Placeholder
   Widget _shimmerText({required double width}) {
     return Container(
       width: width,
@@ -230,23 +221,23 @@ class _RideCardState extends ConsumerState<RideCard> {
     );
   }
 
-  /// 🎨 Status Color Palette
+  /// 🎨 Status Colors
   Color _getStatusColor(String status) {
     switch (status.toLowerCase()) {
       case "scheduled":
-        return const Color(0xFF64B5F6); // soft blue
+        return const Color(0xFF64B5F6); // Blue
       case "ongoing":
-        return const Color(0xFFFFA726); // soft orange
+        return const Color(0xFFFFA726); // Orange
       case "completed":
-        return const Color(0xFF66BB6A); // soft green
+        return const Color(0xFF66BB6A); // Green
       case "cancelled":
-        return const Color(0xFFEF5350); // soft red
+        return const Color(0xFFEF5350); // Red
       default:
         return Colors.grey;
     }
   }
 
-  /// 🎈 Status Icons
+  /// 🧩 Status Icons
   IconData _getStatusIcon(String status) {
     switch (status.toLowerCase()) {
       case "scheduled":
@@ -262,7 +253,7 @@ class _RideCardState extends ConsumerState<RideCard> {
     }
   }
 
-  /// ⏯ Action Icons
+  /// 🧩 Action Icons
   IconData _getActionIcon(String label) {
     switch (label.toLowerCase()) {
       case "start":
@@ -274,5 +265,10 @@ class _RideCardState extends ConsumerState<RideCard> {
       default:
         return Icons.flash_on;
     }
+  }
+
+  /// 🔤 Capitalize Status
+  String _capitalize(String s) {
+    return s.isEmpty ? s : s[0].toUpperCase() + s.substring(1).toLowerCase();
   }
 }

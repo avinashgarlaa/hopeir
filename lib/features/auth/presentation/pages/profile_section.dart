@@ -1,5 +1,4 @@
 import 'dart:convert';
-
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:google_fonts/google_fonts.dart';
@@ -14,6 +13,8 @@ class MyProfileSection extends ConsumerWidget {
   @override
   Widget build(BuildContext context, WidgetRef ref) {
     final user = ref.watch(authNotifierProvider).user;
+    final screenWidth = MediaQuery.of(context).size.width;
+    final isTablet = screenWidth > 600;
 
     const Color primaryColor = Color.fromRGBO(137, 177, 98, 1);
     const Color bgColor = Color(0xFFF7F8FA);
@@ -23,7 +24,10 @@ class MyProfileSection extends ConsumerWidget {
       return Center(
         child: Text(
           "User not logged in",
-          style: GoogleFonts.poppins(fontSize: 16, color: Colors.grey),
+          style: GoogleFonts.poppins(
+            fontSize: isTablet ? 18 : 16,
+            color: Colors.grey,
+          ),
         ),
       );
     }
@@ -36,12 +40,11 @@ class MyProfileSection extends ConsumerWidget {
           body: jsonEncode({'email': email}),
         );
 
-        print(response.body);
         if (!context.mounted) return;
 
         if (response.statusCode == 200) {
           ScaffoldMessenger.of(context).showSnackBar(
-            SnackBar(content: Text('Account deleted successfully.')),
+            const SnackBar(content: Text('Account deleted successfully.')),
           );
 
           final container = ProviderScope.containerOf(context, listen: false);
@@ -50,12 +53,12 @@ class MyProfileSection extends ConsumerWidget {
           if (!context.mounted) return;
 
           Navigator.of(context).pushAndRemoveUntil(
-            MaterialPageRoute(builder: (_) => LoginScreen()),
+            MaterialPageRoute(builder: (_) => const LoginScreen()),
             (route) => false,
           );
         } else {
           ScaffoldMessenger.of(context).showSnackBar(
-            SnackBar(
+            const SnackBar(
               content: Text('Failed to delete account. Please try again.'),
             ),
           );
@@ -63,9 +66,9 @@ class MyProfileSection extends ConsumerWidget {
       } catch (e) {
         if (!context.mounted) return;
 
-        ScaffoldMessenger.of(
-          context,
-        ).showSnackBar(SnackBar(content: Text('Error: ${e.toString()}')));
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(content: Text('Error: ${e.toString()}')),
+        );
       }
     }
 
@@ -81,15 +84,15 @@ class MyProfileSection extends ConsumerWidget {
             ),
             title: Row(
               children: [
-                Icon(FontAwesomeIcons.userSlash, color: primaryColor),
-                SizedBox(width: 20),
+                const Icon(FontAwesomeIcons.userSlash, color: primaryColor),
+                const SizedBox(width: 20),
                 Expanded(
                   child: Text(
                     'Delete Account',
                     style: GoogleFonts.poppins(
                       fontWeight: FontWeight.w600,
                       color: Colors.black,
-                      fontSize: 22,
+                      fontSize: isTablet ? 22 : 20,
                     ),
                   ),
                 ),
@@ -97,14 +100,21 @@ class MyProfileSection extends ConsumerWidget {
             ),
             content: Text(
               'Are you sure you want to delete your account? This action cannot be undone.',
-              style: GoogleFonts.poppins(color: Colors.black87, fontSize: 16),
+              style: GoogleFonts.poppins(
+                color: Colors.black87,
+                fontSize: isTablet ? 17 : 15,
+              ),
             ),
-            actionsPadding: EdgeInsets.symmetric(horizontal: 16, vertical: 8),
+            actionsPadding:
+                const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
             actions: [
               TextButton(
                 child: Text(
                   'Cancel',
-                  style: GoogleFonts.poppins(color: Colors.black, fontSize: 16),
+                  style: GoogleFonts.poppins(
+                    color: Colors.black,
+                    fontSize: isTablet ? 16 : 14,
+                  ),
                 ),
                 onPressed: () {
                   Navigator.of(dialogContext).pop();
@@ -119,10 +129,13 @@ class MyProfileSection extends ConsumerWidget {
                 ),
                 child: Text(
                   'Delete',
-                  style: GoogleFonts.poppins(color: Colors.white, fontSize: 16),
+                  style: GoogleFonts.poppins(
+                    color: Colors.white,
+                    fontSize: isTablet ? 16 : 14,
+                  ),
                 ),
                 onPressed: () async {
-                  final userEmail = ref.watch(authNotifierProvider).user!.email;
+                  final userEmail = ref.read(authNotifierProvider).user!.email;
                   Navigator.of(dialogContext).pop();
                   await deleteAccount(context, userEmail);
                 },
@@ -136,98 +149,116 @@ class MyProfileSection extends ConsumerWidget {
     return Container(
       color: bgColor,
       child: SingleChildScrollView(
-        padding: const EdgeInsets.all(20),
-        child: Container(
-          padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 26),
-          decoration: BoxDecoration(
-            color: cardColor,
-            borderRadius: BorderRadius.circular(24),
-            boxShadow: [
-              BoxShadow(
-                color: Colors.black12.withOpacity(0.08),
-                blurRadius: 16,
-                offset: const Offset(0, 6),
+        padding: EdgeInsets.symmetric(
+          horizontal: isTablet ? 40 : 20,
+          vertical: isTablet ? 30 : 20,
+        ),
+        child: Align(
+          alignment: Alignment.topCenter,
+          child: ConstrainedBox(
+            constraints: const BoxConstraints(maxWidth: 700),
+            child: Container(
+              padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 26),
+              decoration: BoxDecoration(
+                color: cardColor,
+                borderRadius: BorderRadius.circular(24),
+                boxShadow: [
+                  BoxShadow(
+                    color: Colors.black12.withOpacity(0.08),
+                    blurRadius: 16,
+                    offset: const Offset(0, 6),
+                  ),
+                ],
               ),
-            ],
-          ),
-          child: Column(
-            crossAxisAlignment: CrossAxisAlignment.start,
-            children: [
-              Center(
-                child: Row(
-                  children: [
-                    CircleAvatar(
-                      radius: 45,
-                      backgroundColor: primaryColor.withOpacity(0.1),
-                      child: const Icon(
-                        Icons.person,
-                        size: 42,
-                        color: primaryColor,
-                      ),
-                    ),
-                    const SizedBox(height: 16, width: 10),
-                    Column(
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Center(
+                    child: Row(
                       children: [
-                        Text(
-                          '${user.firstname} ${user.lastname}',
-                          style: GoogleFonts.poppins(
-                            fontSize: 22,
-                            fontWeight: FontWeight.w700,
-                            color: Colors.black87,
+                        CircleAvatar(
+                          radius: isTablet ? 52 : 45,
+                          backgroundColor: primaryColor.withOpacity(0.1),
+                          child: const Icon(
+                            Icons.person,
+                            size: 42,
+                            color: primaryColor,
                           ),
                         ),
-                        const SizedBox(height: 6),
-                        Text(
-                          user.email,
-                          style: GoogleFonts.poppins(
-                            fontSize: 15,
-                            color: Colors.grey[600],
+                        const SizedBox(width: 14),
+                        Expanded(
+                          child: Column(
+                            crossAxisAlignment: CrossAxisAlignment.start,
+                            children: [
+                              Text(
+                                '${user.firstname} ${user.lastname}',
+                                style: GoogleFonts.poppins(
+                                  fontSize: isTablet ? 24 : 22,
+                                  fontWeight: FontWeight.w700,
+                                  color: Colors.black87,
+                                ),
+                              ),
+                              const SizedBox(height: 6),
+                              Text(
+                                user.email,
+                                style: GoogleFonts.poppins(
+                                  fontSize: isTablet ? 16 : 15,
+                                  color: Colors.grey[600],
+                                ),
+                              ),
+                            ],
                           ),
                         ),
                       ],
                     ),
-                  ],
-                ),
-              ),
-              const SizedBox(height: 36),
-              _buildProfileItem(
-                icon: FontAwesomeIcons.envelope,
-                label: "Email",
-                value: user.email,
-                color: primaryColor,
-              ),
-              const SizedBox(height: 16),
-              _buildProfileItem(
-                icon: FontAwesomeIcons.user,
-                label: "Mobile Number",
-                value: user.username,
-                color: primaryColor,
-              ),
-              const SizedBox(height: 16),
-              _buildProfileItem(
-                icon: FontAwesomeIcons.userShield,
-                label: "Role",
-                value: user.role,
-                color: primaryColor,
-              ),
-              const SizedBox(height: 36),
-              Row(
-                children: [
-                  Text(
-                    "Delete Your Account",
-                    style: GoogleFonts.poppins(
-                      fontSize: 20,
-                      color: primaryColor,
-                    ),
                   ),
-                  Spacer(),
-                  IconButton(
-                    onPressed: () => showDeleteAccountDialog(context),
-                    icon: Icon(FontAwesomeIcons.userXmark, color: Colors.black),
+                  const SizedBox(height: 15),
+                  _buildProfileItem(
+                    icon: FontAwesomeIcons.envelope,
+                    label: "Email",
+                    value: user.email,
+                    color: primaryColor,
+                    isTablet: isTablet,
+                  ),
+                  const SizedBox(height: 16),
+                  _buildProfileItem(
+                    icon: FontAwesomeIcons.user,
+                    label: "Mobile Number",
+                    value: user.username,
+                    color: primaryColor,
+                    isTablet: isTablet,
+                  ),
+                  const SizedBox(height: 16),
+                  _buildProfileItem(
+                    icon: FontAwesomeIcons.userShield,
+                    label: "Role",
+                    value: user.role,
+                    color: primaryColor,
+                    isTablet: isTablet,
+                  ),
+                  const SizedBox(height: 15),
+                  Row(
+                    children: [
+                      Text(
+                        "Delete Your Account",
+                        style: GoogleFonts.poppins(
+                          fontSize: isTablet ? 20 : 18,
+                          color: primaryColor,
+                        ),
+                      ),
+                      const Spacer(),
+                      IconButton(
+                        onPressed: () => showDeleteAccountDialog(context),
+                        icon: const Icon(
+                          FontAwesomeIcons.userXmark,
+                          color: Colors.black,
+                        ),
+                      ),
+                    ],
                   ),
                 ],
               ),
-            ],
+            ),
           ),
         ),
       ),
@@ -239,6 +270,7 @@ class MyProfileSection extends ConsumerWidget {
     required String label,
     required String value,
     required Color color,
+    required bool isTablet,
   }) {
     return Container(
       padding: const EdgeInsets.symmetric(vertical: 14, horizontal: 16),
@@ -264,7 +296,7 @@ class MyProfileSection extends ConsumerWidget {
                 Text(
                   label,
                   style: GoogleFonts.poppins(
-                    fontSize: 12.5,
+                    fontSize: isTablet ? 13.5 : 12.5,
                     fontWeight: FontWeight.w500,
                     color: Colors.grey[600],
                   ),
@@ -273,7 +305,7 @@ class MyProfileSection extends ConsumerWidget {
                 Text(
                   value,
                   style: GoogleFonts.poppins(
-                    fontSize: 15.5,
+                    fontSize: isTablet ? 17 : 15.5,
                     fontWeight: FontWeight.w600,
                     color: Colors.black87,
                   ),
