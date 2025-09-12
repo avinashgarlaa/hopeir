@@ -13,13 +13,14 @@ class AuthRemoteDatasourceImpl extends AuthRemoteDatasource {
   Future<Map<String, dynamic>> createProfile({
     required String email,
     required String password,
-    required String username,
+    required String number,
     required String firstname,
     required String lastname,
   }) async {
     try {
       final data = {
-        "phone_number": username,
+        "phone_number": number,
+        "username": number,
         "first_name": firstname,
         "last_name": lastname,
         "bio": "This bio has been completely updated.",

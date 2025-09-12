@@ -16,12 +16,12 @@ class AuthRepositoryImpl extends AuthRepository {
   Future<User> createProfile({
     required String email,
     required String password,
-    required String username,
+    required String number,
     required String firstname,
     required String lastname,
   }) async {
     final response = await remoteDatasource.createProfile(
-      username: username,
+      number: number,
       email: email,
       password: password,
       firstname: firstname,

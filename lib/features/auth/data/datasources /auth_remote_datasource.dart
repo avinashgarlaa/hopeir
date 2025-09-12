@@ -10,7 +10,7 @@ abstract class AuthRemoteDatasource {
   });
 
   Future<Map<String, dynamic>> createProfile({
-    required String username,
+    required String number,
     required String email,
     required String password,
     required String firstname,

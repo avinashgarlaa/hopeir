@@ -43,6 +43,12 @@ class _RidesPageState extends ConsumerState<RidesPage> {
   void _showStationSelector({required bool isFrom}) {
     final stationsAsync = ref.read(allStationsProvider);
     stationsAsync.whenData((stations) {
+      // Sort stations alphabetically by name
+      final sortedStations = [
+        ...stations
+      ] // create a copy to avoid mutating original list
+        ..sort((a, b) => a.name.toLowerCase().compareTo(b.name.toLowerCase()));
+
       showModalBottomSheet(
         context: context,
         isScrollControlled: true,
@@ -79,9 +85,9 @@ class _RidesPageState extends ConsumerState<RidesPage> {
                   Expanded(
                     child: ListView.builder(
                       padding: const EdgeInsets.only(bottom: 20),
-                      itemCount: stations.length,
+                      itemCount: sortedStations.length,
                       itemBuilder: (context, index) {
-                        final station = stations[index];
+                        final station = sortedStations[index];
                         return ListTile(
                           leading:
                               const Icon(Icons.train, color: Colors.black54),

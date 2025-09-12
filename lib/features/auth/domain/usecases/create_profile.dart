@@ -9,14 +9,14 @@ class CreateProfile {
   Future<User> call({
     required String email,
     required String password,
-    required String username,
+    required String number,
     required String lastname,
     required String firstname,
   }) {
     return repository.createProfile(
       email: email,
       password: password,
-      username: username,
+      number: number,
       lastname: lastname,
       firstname: firstname,
     );

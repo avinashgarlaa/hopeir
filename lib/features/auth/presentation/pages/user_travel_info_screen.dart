@@ -56,37 +56,39 @@ class _CommuteInfoScreenState extends ConsumerState<CommuteInfoScreen> {
   }
 
   void _selectStation(bool isStart, List<StationModel> stations) {
+    // Create a sorted copy of the stations list (case-insensitive sort)
+    final sortedStations = [...stations]
+      ..sort((a, b) => a.name.toLowerCase().compareTo(b.name.toLowerCase()));
+
     showModalBottomSheet(
       context: context,
       backgroundColor: Colors.black87,
       shape: const RoundedRectangleBorder(
         borderRadius: BorderRadius.vertical(top: Radius.circular(20)),
       ),
-      builder:
-          (_) => ListView.builder(
-            itemCount: stations.length,
-            itemBuilder:
-                (_, i) => ListTile(
-                  leading: const Icon(Icons.train, color: Colors.white),
-                  title: Text(
-                    stations[i].name,
-                    style: const TextStyle(color: Colors.white),
-                  ),
-                  onTap: () {
-                    setState(() {
-                      if (isStart) {
-                        _startStation = stations[i];
-                      } else {
-                        _endStation = stations[i];
-                      }
-                      if (_startStation != null && _endStation != null) {
-                        _nextStep();
-                      }
-                    });
-                    Navigator.pop(context);
-                  },
-                ),
+      builder: (_) => ListView.builder(
+        itemCount: sortedStations.length,
+        itemBuilder: (_, i) => ListTile(
+          leading: const Icon(Icons.train, color: Colors.white),
+          title: Text(
+            sortedStations[i].name,
+            style: const TextStyle(color: Colors.white),
           ),
+          onTap: () {
+            setState(() {
+              if (isStart) {
+                _startStation = sortedStations[i];
+              } else {
+                _endStation = sortedStations[i];
+              }
+              if (_startStation != null && _endStation != null) {
+                _nextStep();
+              }
+            });
+            Navigator.pop(context);
+          },
+        ),
+      ),
     );
   }
 
@@ -267,9 +269,8 @@ class _CommuteInfoScreenState extends ConsumerState<CommuteInfoScreen> {
                                                 color: Colors.white54,
                                               ),
                                             ),
-                                            onChanged:
-                                                (val) =>
-                                                    _customChoice = val.trim(),
+                                            onChanged: (val) =>
+                                                _customChoice = val.trim(),
                                           ),
                                       ],
                                     ),
@@ -299,11 +300,10 @@ class _CommuteInfoScreenState extends ConsumerState<CommuteInfoScreen> {
                                               color: Colors.black45,
                                             ),
                                           ),
-                                          onPressed:
-                                              () => _selectStation(
-                                                true,
-                                                stations,
-                                              ),
+                                          onPressed: () => _selectStation(
+                                            true,
+                                            stations,
+                                          ),
                                         ),
                                         TextButton.icon(
                                           icon: const Icon(
@@ -317,11 +317,10 @@ class _CommuteInfoScreenState extends ConsumerState<CommuteInfoScreen> {
                                               color: Colors.black45,
                                             ),
                                           ),
-                                          onPressed:
-                                              () => _selectStation(
-                                                false,
-                                                stations,
-                                              ),
+                                          onPressed: () => _selectStation(
+                                            false,
+                                            stations,
+                                          ),
                                         ),
                                       ],
                                     ),
@@ -348,8 +347,8 @@ class _CommuteInfoScreenState extends ConsumerState<CommuteInfoScreen> {
                                               _travelTime == null
                                                   ? "Pick Travel Time"
                                                   : _travelTime!.format(
-                                                    context,
-                                                  ),
+                                                      context,
+                                                    ),
                                               style: const TextStyle(
                                                 color: Colors.black45,
                                               ),
@@ -374,10 +373,10 @@ class _CommuteInfoScreenState extends ConsumerState<CommuteInfoScreen> {
                                               ),
                                               enabledBorder:
                                                   UnderlineInputBorder(
-                                                    borderSide: BorderSide(
-                                                      color: Colors.white,
-                                                    ),
-                                                  ),
+                                                borderSide: BorderSide(
+                                                  color: Colors.white,
+                                                ),
+                                              ),
                                             ),
                                             validator: (val) {
                                               if (val == null || val.isEmpty) {
@@ -388,15 +387,14 @@ class _CommuteInfoScreenState extends ConsumerState<CommuteInfoScreen> {
                                           ),
                                           const SizedBox(height: 20),
                                           ElevatedButton(
-                                            onPressed:
-                                                _isLoading
-                                                    ? null
-                                                    : () {
-                                                      if (_formKey.currentState!
-                                                          .validate()) {
-                                                        _submit(user.userId);
-                                                      }
-                                                    },
+                                            onPressed: _isLoading
+                                                ? null
+                                                : () {
+                                                    if (_formKey.currentState!
+                                                        .validate()) {
+                                                      _submit(user.userId);
+                                                    }
+                                                  },
                                             style: ElevatedButton.styleFrom(
                                               backgroundColor: const Color(
                                                 0xFF89B162,
@@ -404,9 +402,9 @@ class _CommuteInfoScreenState extends ConsumerState<CommuteInfoScreen> {
                                               foregroundColor: Colors.white,
                                               padding:
                                                   const EdgeInsets.symmetric(
-                                                    horizontal: 40,
-                                                    vertical: 14,
-                                                  ),
+                                                horizontal: 40,
+                                                vertical: 14,
+                                              ),
                                             ),
                                             child: Text(
                                               _isLoading

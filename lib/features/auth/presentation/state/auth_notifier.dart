@@ -287,7 +287,7 @@ class AuthNotifier extends StateNotifier<AuthState> {
   }
 
   Future<bool> createProfile({
-    required String username,
+    required String number,
     required String email,
     required String password,
     required String firstname,
@@ -297,7 +297,7 @@ class AuthNotifier extends StateNotifier<AuthState> {
 
     try {
       final user = await createProfileUsecase(
-        username: username,
+        number: number,
         email: email,
         password: password,
         firstname: firstname,

@@ -14,7 +14,7 @@ abstract class AuthRepository {
   Future<User> createProfile({
     required String email,
     required String password,
-    required String username,
+    required String number,
     required String lastname,
     required String firstname,
   });

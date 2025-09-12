@@ -25,7 +25,7 @@ class UsernameScreen extends ConsumerStatefulWidget {
 
 class _UsernameScreenState extends ConsumerState<UsernameScreen> {
   final _formKey = GlobalKey<FormState>();
-  final _usernameController = TextEditingController();
+  final _mobilenumberController = TextEditingController();
   static const primaryColor = Color.fromRGBO(137, 177, 98, 1);
 
   Future<void> _submitProfile() async {
@@ -55,15 +55,14 @@ class _UsernameScreenState extends ConsumerState<UsernameScreen> {
         return;
       }
 
-      final success = await ref
-          .read(authNotifierProvider.notifier)
-          .createProfile(
-            email: email,
-            password: password,
-            firstname: widget.firstName,
-            lastname: widget.lastName,
-            username: _usernameController.text.trim(),
-          );
+      final success =
+          await ref.read(authNotifierProvider.notifier).createProfile(
+                email: email,
+                password: password,
+                firstname: widget.firstName,
+                lastname: widget.lastName,
+                number: _mobilenumberController.text.trim(),
+              );
 
       if (!mounted) return;
 
@@ -144,7 +143,7 @@ class _UsernameScreenState extends ConsumerState<UsernameScreen> {
                                 style: GoogleFonts.racingSansOne(
                                   fontSize: height * 0.05,
                                   color: Colors.white.withOpacity(0.8),
-                                  fontWeight: FontWeight.bold,
+                                  fontWeight: FontWeight.w500,
                                 ),
                               ),
                               const SizedBox(height: 12),
@@ -158,7 +157,7 @@ class _UsernameScreenState extends ConsumerState<UsernameScreen> {
                               ),
                               const SizedBox(height: 28),
                               TextFormField(
-                                controller: _usernameController,
+                                controller: _mobilenumberController,
                                 style: GoogleFonts.poppins(fontSize: 16),
                                 decoration: InputDecoration(
                                   hintText: "Mobile Number",
@@ -198,10 +197,9 @@ class _UsernameScreenState extends ConsumerState<UsernameScreen> {
                                 width: double.infinity,
                                 height: 50,
                                 child: ModernButton(
-                                  label:
-                                      state.isLoading
-                                          ? 'Creating...'
-                                          : 'Create Profile',
+                                  label: state.isLoading
+                                      ? 'Creating...'
+                                      : 'Create Profile',
                                   onTap: _submitProfile,
                                 ),
                               ),

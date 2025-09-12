@@ -65,7 +65,7 @@ class _RequestsPageState extends State<RequestsPage>
                       color: primaryColor,
                     ),
                   ),
-                  Spacer(),
+                  const Spacer(),
                   Padding(
                     padding: const EdgeInsets.only(right: 10),
                     child: IconButton(
@@ -127,14 +127,14 @@ class _RequestsPageState extends State<RequestsPage>
                         return (selected
                                 ? gradient
                                 : LinearGradient(
-                                  colors: [
-                                    Colors.grey.shade600,
-                                    Colors.grey.shade600,
-                                  ],
-                                ))
+                                    colors: [
+                                      Colors.grey.shade600,
+                                      Colors.grey.shade600,
+                                    ],
+                                  ))
                             .createShader(
-                              Rect.fromLTWH(0, 0, bounds.width, bounds.height),
-                            );
+                          Rect.fromLTWH(0, 0, bounds.width, bounds.height),
+                        );
                       },
                       child: Text(
                         label,
