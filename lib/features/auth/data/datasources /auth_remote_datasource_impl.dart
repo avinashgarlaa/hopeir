@@ -127,7 +127,7 @@ class AuthRemoteDatasourceImpl extends AuthRemoteDatasource {
   }) async {
     try {
       final response = await dio.get(
-        'https://hopeir.onrender.com/profile/$userId',
+        'https://hopeir.onrender.com/profiles/$userId',
       );
 
       // If backend returns an error as JSON with a "detail" key:

@@ -71,10 +71,9 @@ class _SentRequestsPageState extends ConsumerState<SentRequestsPage> {
       _listenerAttached = true;
 
       ref.listen(wsProvider, (prev, next) {
-        final current =
-            next.incomingRequests
-                .where((r) => r.passengerId == userId.toString())
-                .toList();
+        final current = next.incomingRequests
+            .where((r) => r.passengerId == userId.toString())
+            .toList();
 
         final oldMap = {for (var r in _previousRequests) r.id: r};
 
@@ -92,17 +91,14 @@ class _SentRequestsPageState extends ConsumerState<SentRequestsPage> {
       });
     }
 
-    final myRequests =
-        wsState.incomingRequests
-            .where((r) => r.passengerId == userId.toString())
-            .toList()
-          ..sort((a, b) {
-            final timeA =
-                DateTime.tryParse(a.requestedAt ?? '') ?? DateTime.now();
-            final timeB =
-                DateTime.tryParse(b.requestedAt ?? '') ?? DateTime.now();
-            return timeB.compareTo(timeA);
-          });
+    final myRequests = wsState.incomingRequests
+        .where((r) => r.passengerId == userId.toString())
+        .toList()
+      ..sort((a, b) {
+        final timeA = DateTime.tryParse(a.requestedAt ?? '') ?? DateTime.now();
+        final timeB = DateTime.tryParse(b.requestedAt ?? '') ?? DateTime.now();
+        return timeB.compareTo(timeA);
+      });
 
     if (myRequests.isEmpty) {
       return Center(
@@ -137,10 +133,9 @@ class _SentRequestCard extends ConsumerWidget {
   @override
   Widget build(BuildContext context, WidgetRef ref) {
     final requestedTime = DateTime.tryParse(request.requestedAt ?? '');
-    final formattedRequestedTime =
-        requestedTime != null
-            ? DateFormat.yMMMd().add_jm().format(requestedTime)
-            : 'Unknown';
+    final formattedRequestedTime = requestedTime != null
+        ? DateFormat.yMMMd().add_jm().format(requestedTime)
+        : 'Unknown';
 
     final rideAsync = ref.watch(rideByIdProvider(int.parse(request.rideId)));
 
@@ -167,27 +162,24 @@ class _SentRequestCard extends ConsumerWidget {
           final driverAsync = ref.watch(getUserByIdProviders(ride.user));
 
           final startTime = DateTime.tryParse(ride.startTime.toString());
-          final formattedStartTime =
-              startTime != null
-                  ? DateFormat.yMMMd().add_jm().format(startTime)
-                  : 'Unknown';
+          final formattedStartTime = startTime != null
+              ? DateFormat.yMMMd().add_jm().format(startTime)
+              : 'Unknown';
 
           return Column(
             crossAxisAlignment: CrossAxisAlignment.start,
             children: [
               // Route
               fromStationAsync.when(
-                data:
-                    (from) => toStationAsync.when(
-                      data:
-                          (to) => _infoRow(
-                            Icons.route,
-                            "${from.name} → ${to.name}",
-                            primaryColor,
-                          ),
-                      loading: () => _skeletonLoader(),
-                      error: (_, __) => _errorRow("To station error"),
-                    ),
+                data: (from) => toStationAsync.when(
+                  data: (to) => _infoRow(
+                    Icons.route,
+                    "${from.name} → ${to.name}",
+                    primaryColor,
+                  ),
+                  loading: () => _skeletonLoader(),
+                  error: (_, __) => _errorRow("To station error"),
+                ),
                 loading: () => _skeletonLoader(),
                 error: (_, __) => _errorRow("From station error"),
               ),
@@ -210,12 +202,20 @@ class _SentRequestCard extends ConsumerWidget {
 
               // Driver Summary
               driverAsync.when(
-                data:
-                    (driver) => _infoRow(
+                data: (driver) => Column(
+                  children: [
+                    _infoRow(
                       Icons.person,
                       "${driver?.firstname ?? 'N/A'} ${driver?.lastname ?? ''}",
                       Colors.black87,
                     ),
+                    _infoRow(
+                      Icons.phone,
+                      driver?.username ?? "N/A",
+                      Colors.black87,
+                    ),
+                  ],
+                ),
                 loading: () => _skeletonLoader(),
                 error: (_, __) => _errorRow("Driver unavailable"),
               ),
