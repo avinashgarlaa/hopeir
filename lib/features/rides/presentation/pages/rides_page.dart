@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:google_fonts/google_fonts.dart';
+import 'package:hop_eir/features/banner/presentation/banner_widget.dart';
 import 'package:hop_eir/features/rides/presentation/pages/searched_rides_page.dart';
 import 'package:hop_eir/features/rides/presentation/widgets/message_banner.dart';
 import 'package:hop_eir/features/stations/data/models/station_model.dart';
@@ -189,7 +190,7 @@ class _RidesPageState extends ConsumerState<RidesPage> {
         child: Stack(
           children: [
             Positioned(
-              top: 25,
+              top: 30,
               left: 0,
               right: 0,
               height: size.height * 0.32,
@@ -294,6 +295,13 @@ class _RidesPageState extends ConsumerState<RidesPage> {
                   const SizedBox(height: 90),
                 ],
               ),
+            ),
+            Positioned(
+              top: 30,
+              left: 0,
+              right: 0,
+              height: size.height * 0.32,
+              child: const BannerWidget(),
             ),
           ],
         ),
