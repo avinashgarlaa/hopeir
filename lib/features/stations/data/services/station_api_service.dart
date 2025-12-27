@@ -16,4 +16,16 @@ class StationApiService {
     final data = (response.data as List).first;
     return StationModel.fromJson(data);
   }
+
+  // added for map integration
+  Future<List<StationModel>> fetchStationsWithValidLocation() async {
+    final response = await dio.get(baseUrl);
+    final data = response.data as List;
+
+    return data
+        .map((json) => StationModel.fromJson(json))
+        .where((station) => station.latitude != 0.0 && station.longitude != 0.0)
+        .toList();
+  }
+  // added upto here
 }

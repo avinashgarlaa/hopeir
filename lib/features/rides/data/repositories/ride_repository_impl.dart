@@ -17,7 +17,6 @@ class RideRepositoryImpl extends RideRepository {
     required int seats,
     required int startLocation,
     required int endLocation,
-
     required double distance,
     required DateTime startTime,
     required DateTime endTime,
@@ -28,7 +27,6 @@ class RideRepositoryImpl extends RideRepository {
       seats: seats,
       startLocation: startLocation,
       endLocation: endLocation,
-
       distance: distance,
       startTime: startTime,
       endTime: endTime,

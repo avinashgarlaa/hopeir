@@ -4,7 +4,6 @@ import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:hop_eir/features/notifications/notification_service.dart';
 import 'package:hop_eir/splash_screen.dart';
-import 'package:supertokens_flutter/supertokens.dart';
 import 'firebase_options.dart';
 
 void main() async {
@@ -19,11 +18,6 @@ void main() async {
 
   await LocalNotificationHelper.initialize();
   FirebaseMessaging.onBackgroundMessage(_firebaseMessagingBackgroundHandler);
-
-  SuperTokens.init(
-    apiDomain: "https://hopeir.onrender.com",
-    apiBasePath: "/auth",
-  );
 
   runApp(const ProviderScope(child: MyApp()));
 }
@@ -46,7 +40,7 @@ class MyApp extends StatelessWidget {
       title: 'Project Alpha',
       theme: ThemeData(primarySwatch: Colors.blue),
       debugShowCheckedModeBanner: false,
-      home: SplashScreen(),
+      home: const SplashScreen(),
     );
   }
 }

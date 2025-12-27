@@ -4,6 +4,7 @@ import 'package:google_fonts/google_fonts.dart';
 import 'package:hop_eir/features/auth/domain/entities/user.dart';
 import 'package:hop_eir/features/auth/presentation/providers/auth_provider.dart';
 import 'package:hop_eir/features/rides/domain/entities/ride.dart';
+import 'package:hop_eir/features/rides/presentation/pages/ride_map_page.dart';
 import 'package:hop_eir/features/stations/presentation/providers/providers.dart';
 import 'package:hop_eir/features/vehicles/domain/entities/vehicle.dart';
 import 'package:hop_eir/features/vehicles/presentation/provider/vehicle_providers.dart';
@@ -70,26 +71,64 @@ class RideDetailsPage extends ConsumerWidget {
                       child: ListView(
                         children: [
                           _sectionTitle("Route", primaryColor),
+
                           fromStationAsync.when(
                             data: (fromStation) {
                               return toStationAsync.when(
                                 data: (toStation) {
-                                  return _infoRow(
-                                    Icons.route,
-                                    '${fromStation.name} → ${toStation.name}',
-                                    primaryColor,
+                                  return Column(
+                                    crossAxisAlignment:
+                                        CrossAxisAlignment.start,
+                                    children: [
+                                      _infoRow(
+                                        Icons.route,
+                                        '${fromStation.name} → ${toStation.name}',
+                                        primaryColor,
+                                      ),
+                                      const SizedBox(height: 10),
+                                      ElevatedButton.icon(
+                                        style: ElevatedButton.styleFrom(
+                                          backgroundColor: primaryColor,
+                                          shape: RoundedRectangleBorder(
+                                            borderRadius:
+                                                BorderRadius.circular(12),
+                                          ),
+                                        ),
+                                        icon: const Icon(Icons.map,
+                                            color: Colors.white),
+                                        label: const Text(
+                                          "View on Map",
+                                          style: TextStyle(color: Colors.blue),
+                                        ),
+                                        onPressed: () {
+                                          Navigator.push(
+                                            context,
+                                            MaterialPageRoute(
+                                              builder: (_) => RideMapPage(
+                                                fromLat: fromStation.latitude,
+                                                fromLng: fromStation.longitude,
+                                                toLat: toStation.latitude,
+                                                toLng: toStation.longitude,
+                                                fromName: fromStation.name,
+                                                toName: toStation.name,
+                                              ),
+                                            ),
+                                          );
+                                        },
+                                      ),
+                                    ],
                                   );
                                 },
                                 loading: () => _skeletonLoader(),
-                                error:
-                                    (_, __) =>
-                                        _errorRow("Error loading stations"),
+                                error: (_, __) =>
+                                    _errorRow("Error loading stations"),
                               );
                             },
                             loading: () => _skeletonLoader(),
-                            error:
-                                (_, __) => _errorRow("Error loading stations"),
+                            error: (_, __) =>
+                                _errorRow("Error loading stations"),
                           ),
+
                           const SizedBox(height: 15),
 
                           _sectionTitle("Timing", primaryColor),

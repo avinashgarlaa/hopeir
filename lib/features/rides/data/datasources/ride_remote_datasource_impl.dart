@@ -86,7 +86,7 @@ class RideRemoteDatasourceImpl extends RideRemoteDatasource {
       data: {"ride": ride, "from_user": fromUser},
     );
     if (response.statusCode == 200 || response.statusCode == 201) {
-      print(response.statusCode);
+      print(response);
       return response.data;
     } else {
       throw Exception('Failed to create ride: ${response.statusCode}');

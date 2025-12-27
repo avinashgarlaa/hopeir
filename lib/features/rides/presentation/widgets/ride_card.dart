@@ -1,6 +1,8 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:google_fonts/google_fonts.dart';
+import 'package:hop_eir/features/rides/presentation/pages/ride_chat_page.dart';
+import 'package:hop_eir/features/rides/presentation/pages/ride_map_page.dart';
 import 'package:intl/intl.dart';
 
 import 'package:hop_eir/features/rides/domain/entities/ride.dart';
@@ -67,6 +69,8 @@ class _RideCardState extends ConsumerState<RideCard> {
             children: [
               const Icon(Icons.alt_route_rounded, color: Colors.deepPurple),
               const SizedBox(width: 10),
+
+              // Route names
               Expanded(
                 child: Column(
                   crossAxisAlignment: CrossAxisAlignment.start,
@@ -76,9 +80,43 @@ class _RideCardState extends ConsumerState<RideCard> {
                     const Icon(Icons.arrow_downward_rounded, size: 16),
                     const SizedBox(height: 2),
                     _buildAsyncText(toStationAsync, (s) => s.name),
+
+                    const SizedBox(height: 8),
+
+                    // 🗺️ View on Map button
+                    Row(
+                      children: [
+                        TextButton.icon(
+                          icon: const Icon(Icons.map_outlined, size: 18),
+                          label: const Text("View on Map"),
+                          onPressed: () {
+                            final fromStation = fromStationAsync.value;
+                            final toStation = toStationAsync.value;
+
+                            if (fromStation == null || toStation == null)
+                              return;
+
+                            Navigator.push(
+                              context,
+                              MaterialPageRoute(
+                                builder: (_) => RideMapPage(
+                                  fromLat: fromStation.latitude,
+                                  fromLng: fromStation.longitude,
+                                  toLat: toStation.latitude,
+                                  toLng: toStation.longitude,
+                                  fromName: fromStation.name,
+                                  toName: toStation.name,
+                                ),
+                              ),
+                            );
+                          },
+                        ),
+                      ],
+                    ),
                   ],
                 ),
               ),
+
               _statusBadge(status),
             ],
           ),
@@ -118,12 +156,41 @@ class _RideCardState extends ConsumerState<RideCard> {
           const SizedBox(height: 18),
 
           /// 🎯 Action Buttons
+          /// 🎯 Action Buttons
           Row(
             mainAxisAlignment: MainAxisAlignment.spaceEvenly,
             children: [
               if (showStart) _buildActionButton("Start", widget.primaryColor),
               if (showEnd) _buildActionButton("End", Colors.orange),
               if (showCancel) _buildActionButton("Cancel", Colors.red.shade400),
+
+              // 💬 CHAT BUTTON
+              ElevatedButton.icon(
+                onPressed: () {
+                  Navigator.push(
+                    context,
+                    MaterialPageRoute(
+                      builder: (_) => RideChatPage(
+                        rideId: ride.id,
+                      ),
+                    ),
+                  );
+                },
+                icon: const Icon(Icons.chat_bubble_outline, size: 18),
+                label: Text(
+                  "Chat",
+                  style: GoogleFonts.poppins(fontSize: 13),
+                ),
+                style: ElevatedButton.styleFrom(
+                  backgroundColor: Colors.blueGrey,
+                  foregroundColor: Colors.white,
+                  padding:
+                      const EdgeInsets.symmetric(horizontal: 10, vertical: 12),
+                  shape: RoundedRectangleBorder(
+                    borderRadius: BorderRadius.circular(12),
+                  ),
+                ),
+              ),
             ],
           ),
         ],
@@ -161,30 +228,84 @@ class _RideCardState extends ConsumerState<RideCard> {
     );
   }
 
-  /// 🚦 Action Buttons (Start/End/Cancel)
+  // /// 🚦 Action Buttons (Start/End/Cancel)
+  // Widget _buildActionButton(String label, Color color) {
+  //   return ElevatedButton.icon(
+  //     onPressed: _actionInProgress
+  //         ? null
+  //         : () async {
+  //             setState(() => _actionInProgress = true);
+  //             await ref
+  //                 .read(rideWSControllerProvider(widget.ride.id).notifier)
+  //                 .sendAction(label
+  //                     .toLowerCase()); // Ensure no value is used from this call
+  //             if (mounted) {
+  //               setState(() => _actionInProgress = false);
+  //             }
+  //             widget.onActionCompleted();
+  //           },
+  //     icon: Icon(_getActionIcon(label), size: 18),
+  //     label: Text(label, style: GoogleFonts.poppins(fontSize: 14)),
+  //     style: ElevatedButton.styleFrom(
+  //       foregroundColor: Colors.white,
+  //       backgroundColor: color,
+  //       padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
+  //       shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+  //     ),
+  //   );
+  // }
+  /// 🚦 Action Buttons (Start / End / Cancel)
   Widget _buildActionButton(String label, Color color) {
+    final action = _mapLabelToAction(label);
+
     return ElevatedButton.icon(
-      onPressed: _actionInProgress
+      onPressed: (_actionInProgress || action == null)
           ? null
           : () async {
               setState(() => _actionInProgress = true);
-              await ref
-                  .read(rideWSControllerProvider(widget.ride.id).notifier)
-                  .sendAction(label.toLowerCase());
-              if (mounted) {
-                setState(() => _actionInProgress = false);
+
+              try {
+                // ✅ Sends ONLY valid backend actions: start | end | cancel
+                ref
+                    .read(
+                      rideWSControllerProvider(widget.ride.id).notifier,
+                    )
+                    .sendAction(action);
+              } finally {
+                if (mounted) {
+                  setState(() => _actionInProgress = false);
+                }
+                widget.onActionCompleted();
               }
-              widget.onActionCompleted();
             },
       icon: Icon(_getActionIcon(label), size: 18),
-      label: Text(label, style: GoogleFonts.poppins(fontSize: 14)),
+      label: Text(
+        label,
+        style: GoogleFonts.poppins(fontSize: 14),
+      ),
       style: ElevatedButton.styleFrom(
         foregroundColor: Colors.white,
         backgroundColor: color,
         padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
-        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+        shape: RoundedRectangleBorder(
+          borderRadius: BorderRadius.circular(12),
+        ),
+        elevation: 2,
       ),
     );
+  }
+
+  String? _mapLabelToAction(String label) {
+    switch (label.toLowerCase()) {
+      case 'start':
+        return 'start';
+      case 'end':
+        return 'end';
+      case 'cancel':
+        return 'cancel';
+      default:
+        return null; // 🚫 prevents invalid action
+    }
   }
 
   /// 🌐 Async Data Handler

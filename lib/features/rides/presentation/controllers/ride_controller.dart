@@ -1,6 +1,7 @@
 // ignore_for_file: avoid_print
 
 import 'dart:async';
+import 'package:dio/dio.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:hop_eir/features/requests/domain/entities/ride_request.dart';
 import 'package:hop_eir/features/requests/presentation/controllers/ride_request_ws_controller.dart';
@@ -40,7 +41,6 @@ class RideController extends AutoDisposeAsyncNotifier<List<Ride>> {
     required int totalSeats,
     required int startLocation,
     required int endLocation,
-
     required double distance,
     required DateTime startTime,
     required DateTime endTime,
@@ -52,7 +52,6 @@ class RideController extends AutoDisposeAsyncNotifier<List<Ride>> {
         seats: totalSeats,
         startLocation: startLocation,
         endLocation: endLocation,
-
         distance: distance,
         startTime: startTime,
         endTime: endTime,
@@ -69,40 +68,45 @@ class RideController extends AutoDisposeAsyncNotifier<List<Ride>> {
 
   Future<Map<String, dynamic>> requestRide({
     required int ride,
-    required String fromUser,
-    required WidgetRef ref, // 👈 pass ref here
+    required String fromUser, // user_id (STRING)
+    required WidgetRef ref,
   }) async {
     try {
       final response = await _requestRideUsecase(
         fromUser: fromUser,
         ride: ride,
       );
-      print(response);
-      print("ride sent successfully");
 
-      if (response['success'] == true && response['data'] != null) {
-        final data = response['data'];
+      print('✅ Ride request response: $response');
 
-        // Convert response to RideRequest entity
+      /// 🔥 DRF returns the object directly (no success / data wrapper)
+      if (response['id'] != null) {
         final newRequest = RideRequest(
-          id: data['request_id'].toString(),
-          rideId: data['ride_id'].toString(),
-          passengerId: data['from_user']['id'].toString(),
-          passengerName: data['from_user']['name'],
-          status: data['request_status'],
-          requestedAt: data['requested_at'],
+          id: response['id'].toString(),
+          rideId: response['ride'].toString(),
+          passengerId: response['from_user'], // ✅ STRING user_id
+          passengerName: '', // not returned here
+          status: response['request_status'],
+          requestedAt: response['requested_at'],
         );
 
-        // Inject into WebSocket controller so it appears instantly
+        print('📨 New RideRequest: $newRequest');
+
+        /// Inject into WS controller
         ref
-            .read(rideRequestWSControllerProvider(fromUser.toString()).notifier)
+            .read(
+              rideRequestWSControllerProvider(fromUser).notifier,
+            )
             .addMyRequest(newRequest);
       }
 
       return response;
-    } catch (e) {
-      print('❌ Error sending ride request: $e');
-      return {};
+    } on DioException catch (e) {
+      /// 🔥 ALWAYS log backend error
+      print('❌ Ride request failed');
+      print('STATUS: ${e.response?.statusCode}');
+      print('DATA: ${e.response?.data}');
+      rethrow;
     }
   }
 

@@ -3,6 +3,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:google_fonts/google_fonts.dart';
 import 'package:font_awesome_flutter/font_awesome_flutter.dart';
 import 'package:hop_eir/features/auth/presentation/providers/auth_provider.dart';
+import 'package:hop_eir/features/rides/presentation/pages/rides_page.dart';
 import 'package:hop_eir/features/vehicles/domain/entities/vehicle.dart';
 import 'package:hop_eir/features/vehicles/presentation/provider/vehicle_providers.dart';
 
@@ -197,7 +198,7 @@ class _VehiclePageState extends ConsumerState<VehiclePage> {
             ),
             focusedBorder: OutlineInputBorder(
               borderRadius: BorderRadius.circular(16),
-              borderSide: BorderSide(color: primaryColor, width: 1.5),
+              borderSide: const BorderSide(color: primaryColor, width: 1.5),
             ),
           ),
         ),
@@ -227,17 +228,17 @@ class _VehiclePageState extends ConsumerState<VehiclePage> {
       child: Column(
         children: [
           _buildProfileItem(FontAwesomeIcons.car, "Type", vehicle.vehicleType,
-              primaryColor, isTablet),
+              Colors.black87, isTablet),
           _buildProfileItem(FontAwesomeIcons.cogs, "Model",
-              vehicle.vehicleModel, primaryColor, isTablet),
+              vehicle.vehicleModel, Colors.black87, isTablet),
           _buildProfileItem(FontAwesomeIcons.calendar, "Year",
-              vehicle.vehicleYear.toString(), primaryColor, isTablet),
+              vehicle.vehicleYear.toString(), Colors.black87, isTablet),
           _buildProfileItem(FontAwesomeIcons.palette, "Color",
-              vehicle.vehicleColor, primaryColor, isTablet),
+              vehicle.vehicleColor, Colors.black87, isTablet),
           _buildProfileItem(FontAwesomeIcons.idCard, "License Plate",
-              vehicle.vehicleLicensePlate, primaryColor, isTablet),
+              vehicle.vehicleLicensePlate, Colors.black87, isTablet),
           _buildProfileItem(FontAwesomeIcons.bolt, "Engine",
-              vehicle.vehicleEngineType, primaryColor, isTablet),
+              vehicle.vehicleEngineType, Colors.black87, isTablet),
         ],
       ),
     );
@@ -251,21 +252,21 @@ class _VehiclePageState extends ConsumerState<VehiclePage> {
     bool isTablet,
   ) {
     return Container(
-      margin: const EdgeInsets.symmetric(vertical: 10),
-      padding: const EdgeInsets.symmetric(vertical: 12, horizontal: 16),
+      margin: const EdgeInsets.symmetric(vertical: 7),
+      padding: const EdgeInsets.symmetric(vertical: 8, horizontal: 16),
       decoration: BoxDecoration(
-        color: const Color(0xFFF1F2F6),
+        color: const Color.fromARGB(255, 251, 252, 255),
         borderRadius: BorderRadius.circular(14),
       ),
       child: Row(
         children: [
           Container(
-            padding: const EdgeInsets.all(10),
+            padding: const EdgeInsets.all(12),
             decoration: BoxDecoration(
               color: color.withOpacity(0.1),
               borderRadius: BorderRadius.circular(12),
             ),
-            child: Icon(icon, color: color, size: isTablet ? 24 : 20),
+            child: Icon(icon, color: color, size: isTablet ? 24 : 21.5),
           ),
           const SizedBox(width: 14),
           Expanded(
@@ -275,9 +276,9 @@ class _VehiclePageState extends ConsumerState<VehiclePage> {
                 Text(
                   label,
                   style: GoogleFonts.poppins(
-                    fontSize: isTablet ? 13.5 : 12,
+                    fontSize: isTablet ? 13.5 : 10,
                     fontWeight: FontWeight.w500,
-                    color: Colors.grey[600],
+                    color: primaryColor,
                   ),
                 ),
                 const SizedBox(height: 4),
@@ -286,7 +287,7 @@ class _VehiclePageState extends ConsumerState<VehiclePage> {
                   style: GoogleFonts.poppins(
                     fontSize: isTablet ? 16.5 : 14,
                     fontWeight: FontWeight.w600,
-                    color: Colors.black87,
+                    color: Colors.black54,
                   ),
                 ),
               ],
