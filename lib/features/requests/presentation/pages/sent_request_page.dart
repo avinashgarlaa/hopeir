@@ -1,7 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:google_fonts/google_fonts.dart';
-import 'package:hop_eir/features/rides/presentation/pages/rides_page.dart';
+import 'package:hop_eir/features/rides/presentation/pages/ride_chat_page.dart';
 import 'package:hop_eir/features/rides/presentation/providers/ride_provider.dart';
 import 'package:hop_eir/features/stations/presentation/providers/providers.dart';
 import 'package:intl/intl.dart';
@@ -10,6 +10,9 @@ import 'package:hop_eir/features/notifications/notification_service.dart';
 import 'package:hop_eir/features/requests/domain/entities/ride_request.dart';
 import 'package:hop_eir/features/requests/presentation/controllers/ride_request_ws_controller.dart';
 import 'package:hop_eir/features/requests/presentation/controllers/passanger_ride_ws_controller.dart';
+
+// ✅ TODO: replace this with your real chat page import
+// import 'package:hop_eir/features/chat/presentation/pages/chat_page.dart';
 
 class SentRequestsPage extends ConsumerStatefulWidget {
   static const primaryColor = Color.fromRGBO(137, 177, 98, 1);
@@ -21,39 +24,7 @@ class SentRequestsPage extends ConsumerStatefulWidget {
 
 class _SentRequestsPageState extends ConsumerState<SentRequestsPage> {
   List<RideRequest> _previousRequests = [];
-  final Set<String> _listenedRideIds = {};
-  final List<ProviderSubscription> _subscriptions = [];
   bool _listenerAttached = false;
-
-  Future<void> _maybeConnectToRide(RideRequest request) async {
-    if (_listenedRideIds.contains(request.rideId)) return;
-
-    _listenedRideIds.add(request.rideId);
-
-    final sub = ref.listenManual(passengerRideWSProvider(request.rideId), (
-      prev,
-      next,
-    ) {
-      if (!mounted || prev == next || next.toLowerCase() == 'pending') return;
-
-      if (["completed", "cancelled"].contains(next.toLowerCase())) {
-        Future.microtask(() {
-          ref.invalidate(passengerRideWSProvider(request.rideId));
-          _listenedRideIds.remove(request.rideId);
-        });
-      }
-    });
-
-    _subscriptions.add(sub);
-  }
-
-  @override
-  void dispose() {
-    for (final sub in _subscriptions) {
-      sub.close();
-    }
-    super.dispose();
-  }
 
   @override
   Widget build(BuildContext context) {
@@ -67,6 +38,7 @@ class _SentRequestsPageState extends ConsumerState<SentRequestsPage> {
     final wsProvider = rideRequestWSControllerProvider(userId.toString());
     final wsState = ref.watch(wsProvider);
 
+    // ✅ Listener only once (notification logic)
     if (!_listenerAttached) {
       _listenerAttached = true;
 
@@ -104,7 +76,10 @@ class _SentRequestsPageState extends ConsumerState<SentRequestsPage> {
       return Center(
         child: Text(
           "You haven’t sent any ride requests yet.",
-          style: GoogleFonts.poppins(fontSize: 16, color: primaryColor),
+          style: GoogleFonts.poppins(
+            fontSize: 16,
+            color: SentRequestsPage.primaryColor,
+          ),
         ),
       );
     }
@@ -114,9 +89,31 @@ class _SentRequestsPageState extends ConsumerState<SentRequestsPage> {
       itemCount: myRequests.length,
       itemBuilder: (context, index) {
         final request = myRequests[index];
-        _maybeConnectToRide(request);
-        final rideStatus = ref.watch(passengerRideWSProvider(request.rideId));
-        return _SentRequestCard(request: request, rideStatus: rideStatus);
+
+        final isAccepted = request.status.toLowerCase() == "accepted";
+
+        // ✅ watch ride ws only if accepted
+        final rideStatus = isAccepted
+            ? ref.watch(passengerRideWSProvider(request.rideId))
+            : "not_connected";
+
+        // ✅ Chat allowed rules
+        final isFinalRideCached = isRideFinalCached(request.rideId);
+        final isFinalRideByStatus =
+            rideStatus == "completed" || rideStatus == "cancelled";
+
+        // ✅ Final decision: can chat?
+        final canChat = isAccepted &&
+            rideStatus != "not_connected" &&
+            !isFinalRideCached &&
+            !isFinalRideByStatus;
+
+        return _SentRequestCard(
+          request: request,
+          rideStatus: rideStatus,
+          isAccepted: isAccepted,
+          canChat: canChat,
+        );
       },
     );
   }
@@ -125,8 +122,15 @@ class _SentRequestsPageState extends ConsumerState<SentRequestsPage> {
 class _SentRequestCard extends ConsumerWidget {
   final RideRequest request;
   final String rideStatus;
+  final bool isAccepted;
+  final bool canChat;
 
-  const _SentRequestCard({required this.request, required this.rideStatus});
+  const _SentRequestCard({
+    required this.request,
+    required this.rideStatus,
+    required this.isAccepted,
+    required this.canChat,
+  });
 
   static const Color primaryColor = Color.fromRGBO(137, 177, 98, 1);
 
@@ -137,7 +141,7 @@ class _SentRequestCard extends ConsumerWidget {
         ? DateFormat.yMMMd().add_jm().format(requestedTime)
         : 'Unknown';
 
-    final rideAsync = ref.watch(rideByIdProvider(int.parse(request.rideId)));
+    final rideAsync = ref.watch(rideByIdProvider(request.rideId));
 
     return Container(
       margin: const EdgeInsets.symmetric(horizontal: 20, vertical: 10),
@@ -222,15 +226,16 @@ class _SentRequestCard extends ConsumerWidget {
 
               const SizedBox(height: 12),
 
-              // Status Chips
-              Row(
-                mainAxisAlignment: MainAxisAlignment.spaceBetween,
+              // Status chips (safe: Wrap)
+              Wrap(
+                spacing: 10,
+                runSpacing: 8,
                 children: [
                   _statusChip(
                     "Ride",
-                    rideStatus,
-                    _getStatusIcon(rideStatus),
-                    _getStatusColor(rideStatus),
+                    isAccepted ? rideStatus : "NOT CONNECTED",
+                    _getStatusIcon(isAccepted ? rideStatus : "pending"),
+                    _getStatusColor(isAccepted ? rideStatus : "pending"),
                   ),
                   _statusChip(
                     "Request",
@@ -240,6 +245,61 @@ class _SentRequestCard extends ConsumerWidget {
                   ),
                 ],
               ),
+
+              const SizedBox(height: 14),
+
+              // ✅ Chat button (only when allowed)
+              Row(
+                children: [
+                  Expanded(
+                    child: ElevatedButton.icon(
+                      onPressed: canChat
+                          ? () {
+                              Navigator.push(
+                                context,
+                                MaterialPageRoute(
+                                    builder: (_) =>
+                                        RideChatPage(rideId: request.rideId)),
+                              );
+
+                              ScaffoldMessenger.of(context).showSnackBar(
+                                const SnackBar(
+                                  content: Text(
+                                      "Open Chat (integrate your ChatPage here)"),
+                                ),
+                              );
+                            }
+                          : null,
+                      icon: const Icon(Icons.chat_bubble_outline, size: 18),
+                      label: Text(
+                        canChat ? "Chat" : "Chat Disabled",
+                        style: GoogleFonts.poppins(fontWeight: FontWeight.w600),
+                      ),
+                      style: ElevatedButton.styleFrom(
+                        backgroundColor: canChat ? primaryColor : Colors.grey,
+                        foregroundColor: Colors.white,
+                        elevation: 0,
+                        padding: const EdgeInsets.symmetric(vertical: 12),
+                        shape: RoundedRectangleBorder(
+                          borderRadius: BorderRadius.circular(14),
+                        ),
+                      ),
+                    ),
+                  ),
+                ],
+              ),
+
+              if (!canChat && isAccepted) ...[
+                const SizedBox(height: 6),
+                Text(
+                  (rideStatus == "completed" ||
+                          rideStatus == "cancelled" ||
+                          isRideFinalCached(request.rideId))
+                      ? "Chat disabled: Ride completed/cancelled."
+                      : "Chat will be enabled once ride starts.",
+                  style: GoogleFonts.poppins(fontSize: 12, color: Colors.grey),
+                ),
+              ],
             ],
           );
         },
@@ -297,12 +357,16 @@ class _SentRequestCard extends ConsumerWidget {
         children: [
           Icon(icon, size: 18, color: Colors.black87),
           const SizedBox(width: 6),
-          Text(
-            "${label.toUpperCase()}: ${value.toUpperCase()}",
-            style: const TextStyle(
-              fontSize: 13,
-              fontWeight: FontWeight.w500,
-              color: Colors.black87,
+          Flexible(
+            child: Text(
+              "${label.toUpperCase()}: ${value.toUpperCase()}",
+              maxLines: 1,
+              overflow: TextOverflow.ellipsis,
+              style: const TextStyle(
+                fontSize: 13,
+                fontWeight: FontWeight.w500,
+                color: Colors.black87,
+              ),
             ),
           ),
         ],
@@ -324,7 +388,9 @@ class _SentRequestCard extends ConsumerWidget {
             ),
           ),
           const SizedBox(width: 10),
-          Expanded(child: Container(height: 16, color: Colors.grey.shade300)),
+          Expanded(
+            child: Container(height: 16, color: Colors.grey.shade300),
+          ),
         ],
       ),
     );
@@ -344,32 +410,32 @@ class _SentRequestCard extends ConsumerWidget {
   Color _getStatusColor(String status) {
     switch (status.toLowerCase()) {
       case 'pending':
-        return const Color(0xFFFFF3CD); // Light Yellow
+        return const Color(0xFFFFF3CD);
       case 'accepted':
-        return const Color(0xFFD4EDDA); // Light Green
+        return const Color(0xFFD4EDDA);
       case 'rejected':
-        return const Color(0xFFF8D7DA); // Light Red
+        return const Color(0xFFF8D7DA);
       case 'ongoing':
-        return const Color(0xFFD1ECF1); // Light Blue
+        return const Color(0xFFD1ECF1);
       case 'completed':
-        return const Color(0xFFE2E3E5); // Pale Grey
+        return const Color(0xFFE2E3E5);
       case 'cancelled':
-        return const Color(0xFFF0F0F0); // Lightest Grey
+        return const Color(0xFFF0F0F0);
       default:
-        return const Color(0xFFEDEDED); // Neutral
+        return const Color(0xFFEDEDED);
     }
   }
 
   Color _getRequestChipColor(String status) {
     switch (status.toLowerCase()) {
       case 'pending':
-        return const Color(0xFFFFF8E1); // Soft Yellow
+        return const Color(0xFFFFF8E1);
       case 'accepted':
-        return const Color(0xFFE8F5E9); // Mint Green
+        return const Color(0xFFE8F5E9);
       case 'rejected':
-        return const Color(0xFFFFEBEE); // Soft Red
+        return const Color(0xFFFFEBEE);
       default:
-        return const Color(0xFFECEFF1); // Light Grey Blue
+        return const Color(0xFFECEFF1);
     }
   }
 }

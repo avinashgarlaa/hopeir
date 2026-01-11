@@ -132,8 +132,10 @@
 // ignore_for_file: avoid_print
 
 import 'dart:convert';
+
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:web_socket_channel/web_socket_channel.dart';
+
 import 'package:hop_eir/features/auth/presentation/providers/auth_provider.dart';
 import 'package:hop_eir/features/notifications/notification_service.dart';
 
@@ -189,6 +191,7 @@ class RideWSController extends StateNotifier<RideWSState> {
   final int rideId;
 
   WebSocketChannel? _channel;
+  bool _reconnecting = false;
 
   RideWSController(this.ref, this.rideId)
       : super(
@@ -212,40 +215,58 @@ class RideWSController extends StateNotifier<RideWSState> {
     );
 
     _channel = WebSocketChannel.connect(uri);
+
     _channel!.stream.listen(
       _onMessage,
-      onError: (_) => _reconnect(),
       onDone: _reconnect,
+      onError: (_) => _reconnect(),
     );
   }
 
   void _reconnect() {
+    if (_reconnecting) return;
+    _reconnecting = true;
+
     _channel = null;
-    Future.delayed(const Duration(seconds: 2), _connect);
+
+    Future.delayed(const Duration(seconds: 2), () {
+      _reconnecting = false;
+      _connect();
+    });
   }
 
   /// ─────────────── RECEIVE ───────────────
   void _onMessage(dynamic raw) {
-    final data = jsonDecode(raw);
+    try {
+      final data = jsonDecode(raw);
 
-    switch (data['type']) {
-      case 'connection':
-        _handleConnection(data);
-        break;
+      switch (data['type']) {
+        case 'connection':
+          _handleConnection(data);
+          break;
 
-      case 'chat_message':
-        _handleChat(data);
-        break;
+        case 'chat_history':
+          _handleChatHistory(data);
+          break;
 
-      case 'ride_status_update':
-        _handleRideStatus(data);
-        break;
+        case 'chat_message':
+          _handleChat(data);
+          break;
 
-      case 'driver_location':
-        break;
+        case 'ride_status_update':
+          _handleRideStatus(data);
+          break;
+
+        case 'driver_location':
+          // handled elsewhere if needed
+          break;
+      }
+    } catch (_) {
+      // ignore malformed frames
     }
   }
 
+  /// ─────────────── HANDLERS ───────────────
   void _handleConnection(Map<String, dynamic> data) {
     final status = data['status'];
     if (status != null) {
@@ -253,11 +274,28 @@ class RideWSController extends StateNotifier<RideWSState> {
     }
   }
 
+  void _handleChatHistory(Map<String, dynamic> data) {
+    if (state.historyLoaded) return;
+
+    final messages = (data['messages'] as List).map((e) {
+      return ChatMessage(
+        message: e['message'],
+        senderId: e['sender_id'].toString(),
+        timestamp: DateTime.parse(e['timestamp']),
+      );
+    }).toList();
+
+    state = state.copyWith(
+      chatMessages: messages,
+      historyLoaded: true,
+    );
+  }
+
   void _handleRideStatus(Map<String, dynamic> data) {
     final status = data['status'];
     if (status == null) return;
 
-    if (!['completed', 'cancelled'].contains(status)) {
+    if (!{'completed', 'cancelled'}.contains(status)) {
       LocalNotificationHelper.showNotification(
         '🚘 Ride Update',
         'Ride is now ${status.toUpperCase()}',
@@ -267,7 +305,6 @@ class RideWSController extends StateNotifier<RideWSState> {
     state = state.copyWith(status: status);
   }
 
-  /// ─────────────── CHAT ───────────────
   void _handleChat(Map<String, dynamic> data) {
     final timestamp = DateTime.parse(data['timestamp']);
 
@@ -280,14 +317,15 @@ class RideWSController extends StateNotifier<RideWSState> {
 
     if (exists) return;
 
-    final chat = ChatMessage(
-      message: data['message'],
-      senderId: data['sender_id'].toString(),
-      timestamp: timestamp,
-    );
-
     state = state.copyWith(
-      chatMessages: [...state.chatMessages, chat],
+      chatMessages: [
+        ...state.chatMessages,
+        ChatMessage(
+          message: data['message'],
+          senderId: data['sender_id'].toString(),
+          timestamp: timestamp,
+        ),
+      ],
     );
   }
 
@@ -306,37 +344,15 @@ class RideWSController extends StateNotifier<RideWSState> {
     );
   }
 
-  /// ─────────────── RIDE ACTIONS (RESTORED) ───────────────
-  Future<void> sendAction(String action) async {
+  /// ─────────────── RIDE ACTIONS ───────────────
+  void sendAction(String action) {
     if (!isConnected) return;
 
-    final normalized = action.toLowerCase().trim();
+    final normalized = action.toLowerCase();
     if (!{'start', 'end', 'cancel'}.contains(normalized)) return;
 
     _channel!.sink.add(
       jsonEncode({'action': normalized}),
-    );
-  }
-
-  /// ─────────────── LOAD CHAT HISTORY (REST) ───────────────
-  Future<void> loadChatHistory(
-    Future<List<Map<String, dynamic>>> Function(int rideId) fetcher,
-  ) async {
-    if (state.historyLoaded) return;
-
-    final raw = await fetcher(rideId);
-
-    final history = raw.map((e) {
-      return ChatMessage(
-        message: e['message'],
-        senderId: e['sender_id'].toString(),
-        timestamp: DateTime.parse(e['timestamp']),
-      );
-    }).toList();
-
-    state = state.copyWith(
-      chatMessages: history,
-      historyLoaded: true,
     );
   }
 

@@ -25,10 +25,10 @@ final fetchRequestsUseCaseProvider = Provider<FetchRequestsUseCase>(
 // --- CHANGE THIS to a FutureProvider.family ---
 // so we can do ref.watch(fetchSentRequestsUseCaseProvider(userId))
 final fetchSentRequestsUseCaseProvider =
-    FutureProvider.family<List<RideRequest>, int>((ref, userId) async {
-      final useCase = FetchSentRequestsUseCase(
-        ref.watch(requestRepositoryProvider),
-      );
-      // call the use case with the userId
-      return useCase(userId);
-    });
+    FutureProvider.family<List<RideRequest>, String>((ref, userId) async {
+  final useCase = FetchSentRequestsUseCase(
+    ref.watch(requestRepositoryProvider),
+  );
+  // call the use case with the userId
+  return useCase(userId);
+});

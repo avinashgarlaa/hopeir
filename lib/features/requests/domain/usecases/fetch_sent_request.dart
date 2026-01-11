@@ -7,7 +7,7 @@ class FetchSentRequestsUseCase {
 
   FetchSentRequestsUseCase(this.repository);
 
-  Future<List<RideRequest>> call(int userId) {
+  Future<List<RideRequest>> call(String userId) {
     return repository.fetchSentRequests(userId);
   }
 }

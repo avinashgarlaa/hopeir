@@ -1,13 +1,17 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:google_fonts/google_fonts.dart';
-import 'package:hop_eir/features/rides/presentation/providers/ride_provider.dart';
-import 'package:hop_eir/features/stations/presentation/providers/providers.dart';
 import 'package:intl/intl.dart';
+
 import 'package:hop_eir/features/auth/presentation/providers/auth_provider.dart';
 import 'package:hop_eir/features/requests/domain/entities/ride_request.dart';
 import 'package:hop_eir/features/requests/presentation/controllers/ride_request_ws_controller.dart';
-import 'package:hop_eir/features/requests/presentation/widgets/error_text.dart';
+import 'package:hop_eir/features/rides/presentation/controllers/ride_ws_controller.dart';
+import 'package:hop_eir/features/rides/presentation/providers/ride_provider.dart';
+import 'package:hop_eir/features/stations/presentation/providers/providers.dart';
+
+// 🔁 Replace with your actual chat page
+import 'package:hop_eir/features/rides/presentation/pages/ride_chat_page.dart';
 
 class ReceivedRequestsPage extends ConsumerWidget {
   static const primaryColor = Color.fromRGBO(137, 177, 98, 1);
@@ -18,29 +22,28 @@ class ReceivedRequestsPage extends ConsumerWidget {
   Widget build(BuildContext context, WidgetRef ref) {
     final user = ref.watch(authNotifierProvider).user;
     final userId = user?.userId ?? '';
-    final wsState = ref.watch(rideRequestWSControllerProvider(userId));
 
-    if (wsState.hasError) {
-      return Center(
-        child: ErrorText(message: wsState.error ?? 'Unknown error'),
-      );
-    }
+    final wsState = ref.watch(
+      rideRequestWSControllerProvider(userId),
+    );
 
-    final receivedRequests =
-        wsState.incomingRequests.where((r) => r.passengerId != userId).toList()
-          ..sort((a, b) {
-            final timeA =
-                DateTime.tryParse(a.requestedAt ?? '') ?? DateTime.now();
-            final timeB =
-                DateTime.tryParse(b.requestedAt ?? '') ?? DateTime.now();
-            return timeB.compareTo(timeA); // Latest first
-          });
+    final receivedRequests = wsState.incomingRequests
+        .where((r) => r.driverId == userId) // ✅ correct filter
+        .toList()
+      ..sort((a, b) {
+        final timeA = DateTime.tryParse(a.requestedAt ?? '') ?? DateTime.now();
+        final timeB = DateTime.tryParse(b.requestedAt ?? '') ?? DateTime.now();
+        return timeB.compareTo(timeA);
+      });
 
     if (receivedRequests.isEmpty) {
       return Center(
         child: Text(
           "No incoming ride requests yet.",
-          style: GoogleFonts.poppins(fontSize: 16, color: primaryColor),
+          style: GoogleFonts.poppins(
+            fontSize: 16,
+            color: primaryColor,
+          ),
         ),
       );
     }
@@ -50,6 +53,7 @@ class ReceivedRequestsPage extends ConsumerWidget {
       itemCount: receivedRequests.length,
       itemBuilder: (context, index) {
         final request = receivedRequests[index];
+
         return _RideRequestCard(
           request: request,
           userId: userId,
@@ -58,6 +62,7 @@ class ReceivedRequestsPage extends ConsumerWidget {
             final notifier = ref.read(
               rideRequestWSControllerProvider(userId).notifier,
             );
+
             await notifier.respondToRequest(
               requestId: request.id,
               isAccepted: status == 'accepted',
@@ -90,14 +95,27 @@ class _RideRequestCard extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final requestedTime = DateTime.tryParse(request.requestedAt ?? '');
-    final formattedTime =
-        requestedTime != null
-            ? DateFormat.yMMMd().add_jm().format(requestedTime)
-            : 'Unknown';
+    // 🔥 Connect Ride WS ONLY after accepted
+    if (request.status.toLowerCase() == 'accepted') {
+      ref.watch(
+        rideWSControllerProvider(request.rideId),
+      );
+    }
 
-    final passengerAsync = ref.watch(getUserByIdProviders(request.passengerId));
-    final rideAsync = ref.watch(rideByIdProvider(int.parse(request.rideId)));
+    final requestedTime = DateTime.tryParse(request.requestedAt ?? '');
+    final formattedTime = requestedTime != null
+        ? DateFormat.yMMMd().add_jm().format(requestedTime)
+        : 'Unknown';
+
+    final passengerAsync = request.passengerId.isEmpty
+        ? const AsyncValue.loading()
+        : ref.watch(
+            getUserByIdProviders(request.passengerId),
+          );
+
+    final rideAsync = ref.watch(
+      rideByIdProvider(request.rideId),
+    );
 
     return Container(
       margin: const EdgeInsets.symmetric(horizontal: 20, vertical: 14),
@@ -127,10 +145,9 @@ class _RideRequestCard extends StatelessWidget {
               const SizedBox(width: 12),
               Expanded(
                 child: ShaderMask(
-                  shaderCallback:
-                      (bounds) => gradient.createShader(
-                        Rect.fromLTWH(0, 0, bounds.width, bounds.height),
-                      ),
+                  shaderCallback: (bounds) => gradient.createShader(
+                    Rect.fromLTWH(0, 0, bounds.width, bounds.height),
+                  ),
                   child: Text(
                     request.passengerName,
                     style: GoogleFonts.poppins(
@@ -144,27 +161,28 @@ class _RideRequestCard extends StatelessWidget {
               _statusChip(request.status),
             ],
           ),
+
           const SizedBox(height: 12),
 
           /// 👥 Passenger Details
           passengerAsync.when(
-            data:
-                (passenger) => Column(
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  children: [
-                    _infoRow(
-                      Icons.email_outlined,
-                      passenger?.email ?? 'Email unavailable',
-                    ),
-                    _infoRow(
-                      Icons.phone_android_rounded,
-                      passenger?.username ?? 'Username unavailable',
-                    ),
-                  ],
+            data: (passenger) => Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                _infoRow(
+                  Icons.email_outlined,
+                  passenger?.email ?? 'Email unavailable',
                 ),
+                _infoRow(
+                  Icons.phone_android_rounded,
+                  passenger?.username ?? 'Username unavailable',
+                ),
+              ],
+            ),
             loading: () => const LinearProgressIndicator(minHeight: 2),
             error: (_, __) => _infoRow(Icons.error, 'Failed to load user info'),
           ),
+
           const SizedBox(height: 12),
 
           /// 🚘 Ride Details
@@ -176,37 +194,30 @@ class _RideRequestCard extends StatelessWidget {
               final toStationAsync = ref.watch(
                 stationByIdProvider(ride.endLocation),
               );
+
               final startTime = DateTime.tryParse(ride.startTime.toString());
-              final formattedStartTime =
-                  startTime != null
-                      ? DateFormat.yMMMd().add_jm().format(startTime)
-                      : 'Unknown';
+
+              final formattedStartTime = startTime != null
+                  ? DateFormat.yMMMd().add_jm().format(startTime)
+                  : 'Unknown';
 
               return Column(
                 crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
                   fromStationAsync.when(
-                    data:
-                        (from) => toStationAsync.when(
-                          data:
-                              (to) => _infoRow(
-                                Icons.route_outlined,
-                                '${from.name} → ${to.name}',
-                              ),
-                          loading:
-                              () => _infoRow(
-                                Icons.route,
-                                'Loading destination...',
-                              ),
-                          error:
-                              (_, __) => _infoRow(
-                                Icons.route,
-                                'Destination unavailable',
-                              ),
-                        ),
+                    data: (from) => toStationAsync.when(
+                      data: (to) => _infoRow(
+                        Icons.route_outlined,
+                        '${from.name} → ${to.name}',
+                      ),
+                      loading: () =>
+                          _infoRow(Icons.route, 'Loading destination...'),
+                      error: (_, __) =>
+                          _infoRow(Icons.route, 'Destination unavailable'),
+                    ),
                     loading: () => _infoRow(Icons.route, 'Loading origin...'),
-                    error:
-                        (_, __) => _infoRow(Icons.route, 'Origin unavailable'),
+                    error: (_, __) =>
+                        _infoRow(Icons.route, 'Origin unavailable'),
                   ),
                   const SizedBox(height: 4),
                   _infoRow(
@@ -223,9 +234,12 @@ class _RideRequestCard extends StatelessWidget {
           const SizedBox(height: 10),
 
           /// 🕓 Request Time
-          _infoRow(Icons.access_time_rounded, "Requested at: $formattedTime"),
+          _infoRow(
+            Icons.access_time_rounded,
+            "Requested at: $formattedTime",
+          ),
 
-          /// ✅ Action Buttons
+          /// ✅ ACTIONS
           if (request.status.toLowerCase() == 'pending') ...[
             const SizedBox(height: 18),
             Row(
@@ -238,12 +252,6 @@ class _RideRequestCard extends StatelessWidget {
                     "Reject",
                     style: TextStyle(color: Colors.red),
                   ),
-                  style: OutlinedButton.styleFrom(
-                    side: const BorderSide(color: Colors.red),
-                    shape: RoundedRectangleBorder(
-                      borderRadius: BorderRadius.circular(10),
-                    ),
-                  ),
                 ),
                 const SizedBox(width: 10),
                 ElevatedButton.icon(
@@ -253,13 +261,32 @@ class _RideRequestCard extends StatelessWidget {
                   style: ElevatedButton.styleFrom(
                     backgroundColor: const Color(0xFF4CAF50),
                     foregroundColor: Colors.white,
-                    elevation: 1,
-                    shape: RoundedRectangleBorder(
-                      borderRadius: BorderRadius.circular(10),
-                    ),
                   ),
                 ),
               ],
+            ),
+          ] else if (request.status.toLowerCase() == 'accepted') ...[
+            const SizedBox(height: 18),
+            Align(
+              alignment: Alignment.centerRight,
+              child: ElevatedButton.icon(
+                onPressed: () {
+                  Navigator.push(
+                    context,
+                    MaterialPageRoute(
+                      builder: (_) => RideChatPage(
+                        rideId: request.rideId,
+                      ),
+                    ),
+                  );
+                },
+                icon: const Icon(Icons.chat_bubble_outline),
+                label: const Text("Open Chat"),
+                style: ElevatedButton.styleFrom(
+                  backgroundColor: const Color(0xFF3366CC),
+                  foregroundColor: Colors.white,
+                ),
+              ),
             ),
           ],
         ],
@@ -267,7 +294,7 @@ class _RideRequestCard extends StatelessWidget {
     );
   }
 
-  /// ℹ️ Info Display Row
+  /// ℹ️ Info Row
   Widget _infoRow(IconData icon, String text) {
     return Padding(
       padding: const EdgeInsets.symmetric(vertical: 3),
@@ -287,7 +314,7 @@ class _RideRequestCard extends StatelessWidget {
     );
   }
 
-  /// 🎯 Stylish Status Chip with Icon
+  /// 🎯 Status Chip
   Widget _statusChip(String status) {
     final color = _getStatusColor(status);
     final icon = _getStatusIcon(status);
@@ -316,21 +343,19 @@ class _RideRequestCard extends StatelessWidget {
     );
   }
 
-  /// 🌈 Soft Status Colors
   Color _getStatusColor(String status) {
     switch (status.toLowerCase()) {
       case 'accepted':
-        return const Color(0xFF4CAF50); // soft green
+        return const Color(0xFF4CAF50);
       case 'rejected':
-        return const Color(0xFFFF6B6B); // soft red
+        return const Color(0xFFFF6B6B);
       case 'pending':
-        return const Color(0xFFFFB74D); // amber
+        return const Color(0xFFFFB74D);
       default:
-        return const Color(0xFF90A4AE); // blue grey
+        return const Color(0xFF90A4AE);
     }
   }
 
-  /// 🧩 Fun Status Icons
   IconData _getStatusIcon(String status) {
     switch (status.toLowerCase()) {
       case 'accepted':

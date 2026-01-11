@@ -68,7 +68,7 @@ class RideController extends AutoDisposeAsyncNotifier<List<Ride>> {
 
   Future<Map<String, dynamic>> requestRide({
     required int ride,
-    required String fromUser, // user_id (STRING)
+    required String fromUser, // passenger user_id
     required WidgetRef ref,
   }) async {
     try {
@@ -79,30 +79,44 @@ class RideController extends AutoDisposeAsyncNotifier<List<Ride>> {
 
       print('✅ Ride request response: $response');
 
-      /// 🔥 DRF returns the object directly (no success / data wrapper)
-      if (response['id'] != null) {
-        final newRequest = RideRequest(
-          id: response['id'].toString(),
-          rideId: response['ride'].toString(),
-          passengerId: response['from_user'], // ✅ STRING user_id
-          passengerName: '', // not returned here
-          status: response['request_status'],
-          requestedAt: response['requested_at'],
-        );
-
-        print('📨 New RideRequest: $newRequest');
-
-        /// Inject into WS controller
-        ref
-            .read(
-              rideRequestWSControllerProvider(fromUser).notifier,
-            )
-            .addMyRequest(newRequest);
+      // 🔥 DRF wraps payload inside "data"
+      final data = response['data'];
+      if (data == null) {
+        return response;
       }
+
+      final fromUserData = data['from_user'] as Map<String, dynamic>?;
+
+      final newRequest = RideRequest(
+        id: data['request_id']?.toString() ?? '',
+
+        // Ride ID
+        rideId: data['ride_id'],
+
+        // Passenger
+        passengerId: fromUserData?['id']?.toString() ?? fromUser,
+
+        passengerName: fromUserData?['name']?.toString() ?? '',
+
+        // ⚠️ Driver is NOT known yet (will come from WS later)
+        driverId: '',
+
+        status: data['request_status']?.toString() ?? 'pending',
+
+        requestedAt: data['requested_at']?.toString(),
+      );
+
+      print('📨 Injecting RideRequest into RideRequest WS → $newRequest');
+
+      /// 🔥 HTTP → WS bridge (request list only)
+      ref
+          .read(
+            rideRequestWSControllerProvider(fromUser).notifier,
+          )
+          .addMyRequest(newRequest);
 
       return response;
     } on DioException catch (e) {
-      /// 🔥 ALWAYS log backend error
       print('❌ Ride request failed');
       print('STATUS: ${e.response?.statusCode}');
       print('DATA: ${e.response?.data}');

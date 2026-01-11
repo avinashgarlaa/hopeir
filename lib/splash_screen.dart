@@ -55,17 +55,13 @@ class _SplashScreenState extends ConsumerState<SplashScreen>
 
     _logoScaleAnimation = TweenSequence<double>([
       TweenSequenceItem(
-        tween: Tween(
-          begin: 0.6,
-          end: 1.1,
-        ).chain(CurveTween(curve: Curves.easeOutBack)),
+        tween: Tween(begin: 0.6, end: 1.1)
+            .chain(CurveTween(curve: Curves.easeOutBack)),
         weight: 70,
       ),
       TweenSequenceItem(
-        tween: Tween(
-          begin: 1.1,
-          end: 1.0,
-        ).chain(CurveTween(curve: Curves.elasticOut)),
+        tween: Tween(begin: 1.1, end: 1.0)
+            .chain(CurveTween(curve: Curves.elasticOut)),
         weight: 30,
       ),
     ]).animate(_logoController);
@@ -85,38 +81,39 @@ class _SplashScreenState extends ConsumerState<SplashScreen>
       await _textController.forward();
       await Future.delayed(const Duration(seconds: 1));
 
-      // await FirebaseNotificationHelper.initialize();
-      // await FirebaseNotificationHelper.printFcmToken();
-
       final prefs = await SharedPreferences.getInstance();
       final email = prefs.getString('user_email');
       final password = prefs.getString('user_password');
-      debugPrint(email);
-      debugPrint(password);
+
+      debugPrint("📧 Cached email: $email");
+      debugPrint("🔑 Cached password exists: ${password != null}");
+
       if (email != null && password != null) {
         final container = ProviderScope.containerOf(context, listen: false);
 
         unawaited(() async {
           final authNotifier = container.read(authNotifierProvider.notifier);
           await authNotifier.checkLoginStatus(email, password, context);
+
           final user = container.read(authNotifierProvider).user;
 
           if (user != null && user.userId != "") {
             debugPrint("✅ Logged in as user ID: ${user.userId}");
 
+            // ✅ Fetch vehicle
             try {
               await container
                   .read(vehicleControllerProvider.notifier)
                   .fetchVehicleByUserId(user.userId);
             } catch (e) {
-              debugPrint("⚠️ Vehicle fetch failed: \$e");
+              debugPrint("⚠️ Vehicle fetch failed: $e");
             }
 
+            // =========================================================
+            // ✅ Ride Requests WS (global request listener)
+            // =========================================================
             final requestWSProvider = rideRequestWSControllerProvider(
               user.userId,
-            );
-            final rideController = container.read(
-              rideControllerProvider.notifier,
             );
 
             bool initialSyncDone = false;
@@ -132,7 +129,6 @@ class _SplashScreenState extends ConsumerState<SplashScreen>
                 debugPrint("🟡 Old Request IDs: $oldIds");
                 debugPrint("🟢 Current Request IDs: $currentIds");
 
-                // ✅ Skip all notifications on first sync (guarded globally)
                 if (!initialSyncDone) {
                   initialSyncDone = true;
                   previousRequests = List.from(currentRequests);
@@ -142,11 +138,11 @@ class _SplashScreenState extends ConsumerState<SplashScreen>
                   return;
                 }
 
-                // ✅ Notify only new requests
-                final newRequests =
-                    currentRequests
-                        .where((r) => !oldIds.contains(r.id))
-                        .toList();
+                // ✅ Notify new requests (driver side)
+                final newRequests = currentRequests
+                    .where((r) => !oldIds.contains(r.id))
+                    .toList();
+
                 for (final r in newRequests) {
                   final isDriver = r.passengerId != user.userId;
                   if (isDriver) {
@@ -157,16 +153,15 @@ class _SplashScreenState extends ConsumerState<SplashScreen>
                   }
                 }
 
-                // ✅ Notify only status changes
+                // ✅ Notify status changes
                 final oldMap = {for (var r in previousRequests) r.id: r};
                 for (final r in currentRequests) {
                   final old = oldMap[r.id];
                   if (old != null && old.status != r.status) {
                     final isDriver = r.passengerId != user.userId;
-                    final who =
-                        isDriver
-                            ? 'Request from ${r.passengerName}'
-                            : 'Your request';
+                    final who = isDriver
+                        ? 'Request from ${r.passengerName}'
+                        : 'Your request';
 
                     LocalNotificationHelper.showNotification(
                       isDriver
@@ -179,8 +174,14 @@ class _SplashScreenState extends ConsumerState<SplashScreen>
 
                 previousRequests = List.from(currentRequests);
               },
-              fireImmediately:
-                  false, // 🚫 Prevent firing before initial state is ready
+              fireImmediately: false,
+            );
+
+            // =========================================================
+            // ✅ DRIVER: connect WS for created rides (rideWSController)
+            // =========================================================
+            final rideController = container.read(
+              rideControllerProvider.notifier,
             );
 
             final createdRides = await rideController.fetchCreatedRides(
@@ -197,63 +198,67 @@ class _SplashScreenState extends ConsumerState<SplashScreen>
 
                 if (status == 'completed' || status == 'cancelled') {
                   debugPrint(
-                    "🛑 Skipping WS for ride #$rideId (status: $status)",
-                  );
+                      "🛑 Skipping DRIVER WS for ride #$rideId ($status)");
                   continue;
                 }
 
                 container.read(rideWSControllerProvider(rideId));
-                debugPrint(
-                  "🚀 Connected to WebSocket for created ride ID: $rideId",
-                );
+                debugPrint("🚀 Connected DRIVER WS for created ride: $rideId");
               } catch (e) {
                 debugPrint("❌ Error fetching ride #$rideId for driver: $e");
               }
             }
 
+            // =========================================================
+            // ✅ PASSENGER: connect WS for joined rides (PassengerRideWS)
+            // =========================================================
             await Future.delayed(const Duration(seconds: 2));
+
             final requests = container.read(requestWSProvider).incomingRequests;
 
             final joinedRideIds = requests
                 .where((r) => r.passengerId == user.userId)
-                .map((r) => int.tryParse(r.rideId))
+                .where(
+                    (r) => r.status.toLowerCase() == "accepted") // ✅ IMPORTANT
+                .map((r) => r.rideId)
                 .whereType<int>()
                 .toSet()
                 .difference(createdRideIds);
 
             for (final rideId in joinedRideIds) {
               try {
+                // ✅ cached final? skip
+                if (isRideFinalCached(rideId)) {
+                  debugPrint(
+                      "🔒 Passenger ride #$rideId already final (cached)");
+                  continue;
+                }
+
                 final ride = await container.read(getRideByIdUsecaseProvider)(
                   rideId,
                 );
                 final rideStatus = ride.status.toLowerCase();
 
+                // ✅ final ride: no ws needed, but we still fetch once
                 if (rideStatus == 'completed' || rideStatus == 'cancelled') {
-                  container.read(passengerRideWSProvider('$rideId'));
+                  container.read(passengerRideWSProvider(rideId).notifier);
                   debugPrint(
-                    "🔒 Ride #\$rideId is final, will fetch status without socket.",
+                    "🔒 Passenger ride #$rideId is final ($rideStatus). No WS.",
                   );
                   continue;
                 }
 
-                final rideProvider = rideWSControllerProvider(rideId);
-                container.read(rideProvider);
+                // ✅ trigger passenger ride controller (safe)
+                container.read(passengerRideWSProvider(rideId).notifier);
                 debugPrint(
-                  "🚀 Connected to WebSocket for joined ride ID: \$rideId",
+                  "🚀 Triggered PassengerRideWSController for ride: $rideId",
                 );
 
-                bool initialized = false;
-                final completer = Completer<void>();
-
+                // ✅ optional: listen to passenger status updates
                 container.listen<String>(
-                  rideProvider.select((state) => state.status),
+                  passengerRideWSProvider(rideId),
                   (prev, next) {
-                    if (!initialized && next != 'loading') {
-                      initialized = true;
-                      completer.complete();
-                    }
-
-                    if (prev != next && next != 'pending') {
+                    if (prev != next && next.toLowerCase() != 'pending') {
                       LocalNotificationHelper.showNotification(
                         '🚘 Ride Status Updated',
                         'Your ride is now ${next.toUpperCase()}',
@@ -262,17 +267,13 @@ class _SplashScreenState extends ConsumerState<SplashScreen>
                   },
                   fireImmediately: false,
                 );
-
-                await Future.any([
-                  completer.future,
-                  Future.delayed(const Duration(seconds: 2)),
-                ]);
               } catch (e) {
-                debugPrint("❌ Error handling ride #\$rideId: \$e");
+                debugPrint("❌ Error handling passenger ride #$rideId: $e");
               }
             }
 
             if (!mounted) return;
+
             Navigator.pushReplacement(
               context,
               MaterialPageRoute(builder: (_) => const MainScreen()),
@@ -295,8 +296,8 @@ class _SplashScreenState extends ConsumerState<SplashScreen>
         context,
         MaterialPageRoute(builder: (_) => const LoginScreen()),
       );
-    } catch (e) {
-      debugPrint("❌ Error during startup: \$e\n\$stack");
+    } catch (e, st) {
+      debugPrint("❌ Error during startup: $e\n$st");
 
       if (!mounted) return;
       Navigator.pushReplacement(
@@ -379,10 +380,9 @@ class _SplashScreenState extends ConsumerState<SplashScreen>
         return Opacity(
           opacity: _textFadeInAnimation.value,
           child: ShaderMask(
-            shaderCallback:
-                (bounds) => gradient.createShader(
-                  Rect.fromLTWH(0, 0, bounds.width, bounds.height),
-                ),
+            shaderCallback: (bounds) => gradient.createShader(
+              Rect.fromLTWH(0, 0, bounds.width, bounds.height),
+            ),
             blendMode: BlendMode.srcIn,
             child: Text(
               'Everyday car pooling solution',
@@ -473,16 +473,15 @@ class _ArcPainter extends CustomPainter {
 
   @override
   void paint(Canvas canvas, Size size) {
-    final paint =
-        Paint()
-          ..color = color
-          ..strokeWidth = thickness
-          ..style = PaintingStyle.stroke
-          ..strokeCap = StrokeCap.round;
+    final paint = Paint()
+      ..color = color
+      ..strokeWidth = thickness
+      ..style = PaintingStyle.stroke
+      ..strokeCap = StrokeCap.round;
 
     final rect = Rect.fromLTWH(0, 0, size.width, size.height);
-    final startAngle = -0.6; // ~-34 degrees
-    final sweepAngle = 1.8; // ~103 degrees
+    final startAngle = -0.6;
+    final sweepAngle = 1.8;
 
     canvas.drawArc(rect, startAngle, sweepAngle, false, paint);
   }
@@ -497,14 +496,11 @@ final FlutterLocalNotificationsPlugin flutterLocalNotificationsPlugin =
 Future<void> setupFCM() async {
   FirebaseMessaging messaging = FirebaseMessaging.instance;
 
-  // Request permission
   await messaging.requestPermission();
 
-  // Get and print the token (optional)
   final token = await messaging.getToken();
   print("📱 FCM Token: $token");
 
-  // iOS foreground notification setup
   const AndroidInitializationSettings androidInit =
       AndroidInitializationSettings('@mipmap/ic_launcher');
 
@@ -535,10 +531,8 @@ Future<void> setupFCM() async {
 
   FirebaseMessaging.onMessageOpenedApp.listen((message) {
     print("📬 User opened app from notification: ${message.data}");
-    // Navigate or perform actions
   });
 
-  // Handle background message (requires top-level function)
   FirebaseMessaging.onBackgroundMessage(_firebaseMessagingBackgroundHandler);
 }
 

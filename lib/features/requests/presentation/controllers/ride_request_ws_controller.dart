@@ -10,251 +10,382 @@ import 'package:web_socket_channel/status.dart' as status;
 
 import '../../data/models/ride_request_model.dart';
 import '../../domain/entities/ride_request.dart';
-import '../../../notifications/notification_service.dart';
+
+// ✅ IMPORTANT: passenger ride ws controller
+import 'passanger_ride_ws_controller.dart';
 
 final rideRequestWSControllerProvider = StateNotifierProvider.family<
-  RideRequestWSController,
-  RideRequestWSState,
-  String
->((ref, userId) => RideRequestWSController(userId));
+    RideRequestWSController, RideRequestWSState, String>((ref, userId) {
+  return RideRequestWSController(ref, userId);
+});
 
 class RideRequestWSController extends StateNotifier<RideRequestWSState> {
+  final Ref ref;
   final String userId;
-  late WebSocketChannel _channel;
-  StreamSubscription? _subscription;
-  Timer? _reconnectTimer;
-  int _reconnectAttempts = 0;
-  static const int _maxReconnectAttempts = 5;
-  bool _initialStateHandled = false;
 
-  RideRequestWSController(this.userId) : super(RideRequestWSState.initial()) {
-    _connect();
+  WebSocketChannel? _channel;
+  StreamSubscription? _subscription;
+
+  Timer? _reconnectTimer;
+  bool _isDisposed = false;
+  bool _isConnecting = false;
+
+  int _reconnectAttempts = 0;
+  static const int _maxReconnectAttempts = 7;
+
+  // ✅ track which ride sockets we already triggered
+  final Set<int> _connectedRideSockets = {};
+
+  RideRequestWSController(this.ref, this.userId)
+      : super(RideRequestWSState.initial()) {
+    Future.microtask(() => _connectSafely());
   }
 
-  void _connect() {
-    final uri = Uri.parse(
-      'wss://hopeir.onrender.com/ws/ride-requests/?user_id=$userId',
+  // ======================================================
+  // LOG HELPERS (BEST LOGGING)
+  // ======================================================
+  void _log(String msg) => print("[RideReqWS][$userId] $msg");
+
+  void _logError(String msg, [Object? e, StackTrace? st]) {
+    _log("❌ $msg ${e != null ? "-> $e" : ""}");
+    if (st != null) {
+      _log("STACKTRACE:\n$st");
+    }
+  }
+
+  // ======================================================
+  // CONNECT
+  // ======================================================
+  Uri _buildWsUri() {
+    return Uri(
+      scheme: "wss",
+      host: "hopeir.onrender.com",
+      path: "/ws/ride-requests/",
+      queryParameters: {"user_id": userId},
+    );
+  }
+
+  Future<void> _connectSafely() async {
+    if (_isDisposed) return;
+    if (_isConnecting) return;
+
+    _isConnecting = true;
+
+    final uri = _buildWsUri();
+    _log("🔌 Connecting → $uri");
+
+    state = state.copyWith(
+      status: _reconnectAttempts > 0
+          ? ConnectionStatus.reconnecting
+          : ConnectionStatus.connecting,
     );
 
     try {
-      state = state.copyWith(
-        status:
-            _reconnectAttempts > 0
-                ? ConnectionStatus.reconnecting
-                : ConnectionStatus.connecting,
-      );
+      // cleanup old
+      await _subscription?.cancel();
+      _subscription = null;
 
+      try {
+        _channel?.sink.close(status.normalClosure);
+      } catch (_) {}
+      _channel = null;
+
+      // connect
       _channel = WebSocketChannel.connect(uri);
-      _subscription = _channel.stream.listen(
-        _handleMessage,
-        onDone: _scheduleReconnect,
+
+      _subscription = _channel!.stream.listen(
+        _handleMessageSafely,
+        onDone: _handleDisconnectSafely,
         onError: (error) {
-          _handleError("WebSocket error: $error");
-          _scheduleReconnect();
+          _logError("WS stream error", error is Object ? error : null);
+          _handleDisconnectSafely();
         },
+        cancelOnError: true,
       );
 
       state = state.copyWith(status: ConnectionStatus.connected, error: null);
+
       _reconnectAttempts = 0;
-    } catch (e) {
-      _handleError("Connection failed: $e");
+      _log("✅ Connected");
+    } catch (e, st) {
+      _logError("Connection failed", e, st);
       _scheduleReconnect();
+    } finally {
+      _isConnecting = false;
     }
   }
 
-  void _handleMessage(dynamic message) {
-    try {
-      print("📩 Raw WebSocket message: $message");
-      final json = jsonDecode(message);
-      final type = json['type'];
-      final data = json['data'];
+  // ======================================================
+  // MESSAGE HANDLER
+  // ======================================================
+  void _handleMessageSafely(dynamic message) {
+    if (_isDisposed) return;
 
-      if (type == null || data == null) {
-        print('⏭ Skipping malformed message');
+    final msgString = message?.toString() ?? "";
+
+    // don't spam massive payload
+    _log("📩 Message received (${msgString.length} chars)");
+
+    Map<String, dynamic>? decoded;
+
+    try {
+      final raw = jsonDecode(msgString);
+
+      if (raw is! Map) {
+        _log("⚠️ Ignored: json is not an object/map");
         return;
       }
 
-      switch (type) {
-        case 'connection':
-          print('🔗 Connection established');
-          break;
-
-        case 'initial_state':
-          final initial =
-              (data as List)
-                  .map((e) => RideRequestModel.fromJson(e).toEntity())
-                  .toList();
-
-          print('📥 Initial requests loaded: ${initial.length}');
-
-          // Compare with old state
-          final oldIds = state.incomingRequests.map((r) => r.id).toSet();
-          final currentIds = initial.map((r) => r.id).toSet();
-          final newOnes = initial.where((r) => !oldIds.contains(r.id)).toList();
-
-          print("🟡 Old Request IDs: $oldIds");
-          print("🟢 Current Request IDs: $currentIds");
-
-          if (_initialStateHandled) {
-            for (final r in newOnes) {
-              print(
-                "🔔 Showing Notification → 📥 New Ride Request: From: ${r.passengerName}",
-              );
-              LocalNotificationHelper.showNotification(
-                "📥 New Ride Request",
-                "From: ${r.passengerName}",
-              );
-            }
-          } else {
-            print(
-              "🛑 Skipping notifications for first-time initial_state sync",
-            );
-            _initialStateHandled = true;
-          }
-
-          state = state.copyWith(
-            incomingRequests: initial,
-            lastUpdated: DateTime.now(),
-            hasUnread:
-                newOnes.isNotEmpty
-                    ? true
-                    : state.hasUnread, // ✅ set to true if new
-          );
-          break;
-
-        case 'ride_request_created':
-          final newRequest = RideRequestModel.fromJson(data).toEntity();
-          state = state.copyWith(
-            incomingRequests: [...state.incomingRequests, newRequest],
-            lastUpdated: DateTime.now(),
-            hasUnread: true, // ✅ set unread
-          );
-          print(
-            "🔔 Showing Notification → 📥 New Ride Request: From: ${newRequest.passengerName}",
-          );
-          LocalNotificationHelper.showNotification(
-            "📥 New Ride Request",
-            "From: ${newRequest.passengerName}",
-          );
-          break;
-
-        case 'ride_request_updated':
-          final updated = RideRequestModel.fromJson(data).toEntity();
-          final updatedList =
-              state.incomingRequests.map((r) {
-                return r.id == updated.id ? updated : r;
-              }).toList();
-
-          state = state.copyWith(
-            incomingRequests: updatedList,
-            lastUpdated: DateTime.now(),
-          );
-
-          print(
-            "🔔 Showing Notification → ✅ Ride Request Updated: ${updated.status.toUpperCase()}",
-          );
-          LocalNotificationHelper.showNotification(
-            "✅ Ride Request Updated",
-            "Status: ${updated.status.toUpperCase()}",
-          );
-          break;
-
-        default:
-          print("❓ Unknown WebSocket type: $type");
-      }
-    } catch (e, stack) {
-      _handleError("❌ Message processing failed: $e", stack);
-    }
-  }
-
-  Future<void> respondToRequest({
-    required String requestId,
-    required bool isAccepted,
-  }) async {
-    try {
-      if (state.status != ConnectionStatus.connected) {
-        throw Exception("No active WebSocket connection.");
-      }
-
-      _channel.sink.add(
-        jsonEncode({
-          'action': isAccepted ? 'accept' : 'reject',
-          'request_id': requestId,
-        }),
-      );
-
-      // Optimistic update
-      final updatedList =
-          state.incomingRequests.map((r) {
-            if (r.id == requestId) {
-              final newStatus = isAccepted ? 'accepted' : 'rejected';
-
-              // 🔔 Send local notification here
-
-              LocalNotificationHelper.showNotification(
-                isAccepted
-                    ? "✅ Ride Request Accepted"
-                    : "❌ Ride Request Rejected",
-                "Request from ${r.passengerName} has been ${newStatus.toUpperCase()}",
-              );
-
-              return r.copyWith(status: newStatus);
-            } else {
-              return r;
-            }
-          }).toList();
-
-      state = state.copyWith(
-        incomingRequests: updatedList,
-        lastUpdated: DateTime.now(),
-      );
-    } catch (e, stack) {
-      _handleError("Failed to send response: $e", stack);
-    }
-  }
-
-  void _handleError(String message, [StackTrace? stack]) {
-    print('$message\n${stack ?? StackTrace.current}');
-    state = state.copyWith(
-      status: ConnectionStatus.disconnected,
-      error: message,
-    );
-  }
-
-  void _scheduleReconnect() {
-    if (_reconnectAttempts >= _maxReconnectAttempts) {
-      state = state.copyWith(error: "Max reconnection attempts reached.");
+      decoded = raw.cast<String, dynamic>();
+    } catch (e) {
+      // backend may send non-json frames sometimes
+      _log("⚠️ Ignored: non-json message");
       return;
     }
 
-    _reconnectTimer?.cancel();
-    _reconnectAttempts++;
-    final delay = Duration(seconds: min(_reconnectAttempts * 2, 10));
+    final type = decoded['type']?.toString();
+    final data = decoded['data'];
 
-    print("🔁 Reconnecting in ${delay.inSeconds}s...");
-    _reconnectTimer = Timer(delay, _connect);
+    if (type == null) {
+      _log("⚠️ Missing 'type' in message");
+      return;
+    }
+
+    switch (type) {
+      case 'initial_state':
+        _handleInitialStateSafely(data);
+        break;
+
+      case 'ride_request_updated':
+        _handleRequestUpdatedSafely(data);
+        break;
+
+      default:
+        _log("⚠️ Unknown type → $type");
+    }
   }
 
-  // Instantly add a new request (e.g., when user creates a ride request).
+  // ======================================================
+  // LOCAL INSERT (HTTP → WS BRIDGE)
+  // ======================================================
   void addMyRequest(RideRequest request) {
-    final alreadyExists = state.incomingRequests.any((r) => r.id == request.id);
-    if (alreadyExists) return;
+    if (_isDisposed) return;
+
+    _log("➕ LOCAL addMyRequest requestId=${request.id}");
+
+    final exists = state.incomingRequests.any((r) => r.id == request.id);
+    if (exists) {
+      _log("⚠️ Request already exists, skipping");
+      return;
+    }
 
     state = state.copyWith(
       incomingRequests: [...state.incomingRequests, request],
       lastUpdated: DateTime.now(),
+      hasUnread: true,
     );
+
+    _connectRideSocketIfAccepted(request);
   }
 
+  // ======================================================
+  // INITIAL STATE
+  // ======================================================
+  void _handleInitialStateSafely(dynamic data) {
+    if (_isDisposed) return;
+
+    if (data is! List) {
+      _log("⚠️ initial_state data is not List");
+      return;
+    }
+
+    try {
+      final requests =
+          data.map((e) => RideRequestModel.fromJson(e).toEntity()).toList();
+
+      state = state.copyWith(
+        incomingRequests: requests,
+        lastUpdated: DateTime.now(),
+        hasUnread: requests.isNotEmpty,
+      );
+
+      _log("📥 Initial requests → ${requests.length}");
+
+      // ✅ trigger passenger WS only for accepted + not-final rides
+      for (final req in requests) {
+        _connectRideSocketIfAccepted(req);
+      }
+    } catch (e, st) {
+      _logError("initial_state parse error", e, st);
+    }
+  }
+
+  // ======================================================
+  // REQUEST UPDATED
+  // ======================================================
+  void _handleRequestUpdatedSafely(dynamic data) {
+    if (_isDisposed) return;
+
+    try {
+      final updated = RideRequestModel.fromJson(data).toEntity();
+
+      // update or insert
+      final updatedList = [...state.incomingRequests];
+      final index = updatedList.indexWhere((r) => r.id == updated.id);
+
+      if (index == -1) {
+        updatedList.add(updated);
+      } else {
+        updatedList[index] = updated;
+      }
+
+      state = state.copyWith(
+        incomingRequests: updatedList,
+        lastUpdated: DateTime.now(),
+        hasUnread: true,
+      );
+
+      _log(
+        "🔄 Request updated → requestId=${updated.id} rideId=${updated.rideId} status=${updated.status}",
+      );
+
+      // ✅ if now accepted, connect passenger ride ws
+      _connectRideSocketIfAccepted(updated);
+    } catch (e, st) {
+      _logError("ride_request_updated parse error", e, st);
+    }
+  }
+
+  // ======================================================
+  // ✅ CONNECT RIDE WS ONLY WHEN ACCEPTED + NOT FINAL
+  // ======================================================
+  void _connectRideSocketIfAccepted(RideRequest req) {
+    if (_isDisposed) return;
+
+    try {
+      final reqStatus = (req.status).toString().toLowerCase();
+      if (reqStatus != "accepted") return;
+
+      final int? rideId = int.tryParse(req.rideId.toString());
+      if (rideId == null) {
+        _log("⚠️ rideId parse failed for requestId=${req.id}");
+        return;
+      }
+
+      // ✅ IMPORTANT FILTER: don't connect if ride already completed/cancelled
+      // this uses cache from passenger controller file
+      if (isRideFinalCached(rideId)) {
+        _log(
+            "🔒 Ride #$rideId already final (cached). Skip passenger WS trigger.");
+        return;
+      }
+
+      // prevent repeated triggers
+      if (_connectedRideSockets.contains(rideId)) return;
+      _connectedRideSockets.add(rideId);
+
+      // ✅ Trigger passenger ride controller
+      ref.read(passengerRideWSProvider(rideId).notifier);
+
+      _log("🚀 Triggered PassengerRideWSController for rideId=$rideId");
+    } catch (e, st) {
+      _logError("_connectRideSocketIfAccepted error", e, st);
+    }
+  }
+
+  // ======================================================
+  // SEND ACTION
+  // ======================================================
+  Future<void> respondToRequest({
+    required String requestId,
+    required bool isAccepted,
+  }) async {
+    if (_isDisposed) return;
+
+    if (state.status != ConnectionStatus.connected || _channel == null) {
+      _log("⚠️ respondToRequest called but WS not connected");
+      return;
+    }
+
+    try {
+      final payload = {
+        "action": isAccepted ? "accept" : "reject",
+        "request_id": requestId,
+      };
+
+      _channel!.sink.add(jsonEncode(payload));
+
+      _log("📤 Sent action=${payload["action"]} requestId=$requestId");
+    } catch (e, st) {
+      _logError("send error", e, st);
+    }
+  }
+
+  // ======================================================
+  // RECONNECT LOGIC
+  // ======================================================
+  void _handleDisconnectSafely() {
+    if (_isDisposed) return;
+
+    _log("🚫 Disconnected");
+
+    try {
+      _subscription?.cancel();
+      _subscription = null;
+    } catch (_) {}
+
+    _channel = null;
+
+    _scheduleReconnect();
+  }
+
+  void _scheduleReconnect() {
+    if (_isDisposed) return;
+
+    if (_reconnectAttempts >= _maxReconnectAttempts) {
+      state = state.copyWith(
+        status: ConnectionStatus.disconnected,
+        error: "Max reconnect attempts reached",
+      );
+      _log("🛑 Max reconnect attempts reached");
+      return;
+    }
+
+    _reconnectAttempts++;
+    final delay = Duration(seconds: min(_reconnectAttempts * 2, 12));
+
+    _log("🔁 Reconnect in ${delay.inSeconds}s (attempt=$_reconnectAttempts)");
+
+    _reconnectTimer?.cancel();
+    _reconnectTimer = Timer(delay, () {
+      if (!_isDisposed) _connectSafely();
+    });
+  }
+
+  // ======================================================
+  // DISPOSE
+  // ======================================================
   @override
   void dispose() {
-    _subscription?.cancel();
+    _isDisposed = true;
+
+    try {
+      _subscription?.cancel();
+    } catch (_) {}
+
     _reconnectTimer?.cancel();
-    _channel.sink.close(status.normalClosure);
+
+    try {
+      _channel?.sink.close(status.normalClosure);
+    } catch (_) {}
+
     super.dispose();
   }
 }
 
+// ======================================================
+// STATE
+// ======================================================
 enum ConnectionStatus {
   initial,
   connecting,
@@ -268,28 +399,27 @@ class RideRequestWSState {
   final List<RideRequest> incomingRequests;
   final String? error;
   final DateTime? lastUpdated;
-  final bool hasUnread; // NEW
+  final bool hasUnread;
 
   RideRequestWSState({
     required this.status,
     required this.incomingRequests,
     this.error,
     this.lastUpdated,
-    this.hasUnread = false, // default
+    this.hasUnread = false,
   });
 
   factory RideRequestWSState.initial() => RideRequestWSState(
-    status: ConnectionStatus.initial,
-    incomingRequests: [],
-    hasUnread: false,
-  );
+        status: ConnectionStatus.initial,
+        incomingRequests: [],
+      );
 
   RideRequestWSState copyWith({
     ConnectionStatus? status,
     List<RideRequest>? incomingRequests,
     String? error,
     DateTime? lastUpdated,
-    bool? hasUnread, // NEW
+    bool? hasUnread,
   }) {
     return RideRequestWSState(
       status: status ?? this.status,
@@ -301,5 +431,4 @@ class RideRequestWSState {
   }
 
   bool get isConnected => status == ConnectionStatus.connected;
-  bool get hasError => error != null;
 }

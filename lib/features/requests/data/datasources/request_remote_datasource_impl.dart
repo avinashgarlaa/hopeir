@@ -18,9 +18,9 @@ class RequestRemoteDataSourceImpl implements RequestRemoteDataSource {
   }
 
   @override
-  Future<List<RideRequestModel>> fetchRequestsByUser(int userId) async {
+  Future<List<RideRequestModel>> fetchRequestsByUser(String userId) async {
     final response = await dio.get(
-      'https://hopeir.onrender.com/rides/request/get/?user_id=$userId',
+      'https://hopeir.onrender.com/rides/request/get/?user_id=6f3d5d27-acb6-4e84-a817-b276ad69a390',
     );
 
     final data = response.data as List;
@@ -31,7 +31,7 @@ class RequestRemoteDataSourceImpl implements RequestRemoteDataSource {
   Future<void> respondToRequest({
     required int requestId,
     required String action,
-    required int userId,
+    required String userId,
   }) async {
     final response = await dio.put(
       'https://hopeir.onrender.com/rides/request/$requestId/respond/',

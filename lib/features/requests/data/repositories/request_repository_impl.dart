@@ -23,7 +23,7 @@ class RequestRepositoryImpl implements RequestRepository {
   Future<void> respondToRequest({
     required int requestId,
     required String action,
-    required int userId,
+    required String userId,
   }) async {
     return await remoteDataSource.respondToRequest(
       requestId: requestId,
@@ -33,7 +33,7 @@ class RequestRepositoryImpl implements RequestRepository {
   }
 
   @override
-  Future<List<RideRequest>> fetchSentRequests(int userId) async {
+  Future<List<RideRequest>> fetchSentRequests(String userId) async {
     try {
       final models = await remoteDataSource.fetchRequestsByUser(userId);
       return models.map((model) => model.toEntity()).toList();

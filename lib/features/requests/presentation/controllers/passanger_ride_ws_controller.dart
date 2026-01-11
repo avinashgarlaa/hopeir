@@ -1,44 +1,78 @@
 // ignore_for_file: non_constant_identifier_names, avoid_print
 
+import 'dart:async';
 import 'dart:convert';
+
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:http/http.dart' as http;
 import 'package:web_socket_channel/web_socket_channel.dart';
+import 'package:web_socket_channel/io.dart'; // ✅ IMPORTANT
+
+import 'package:hop_eir/features/auth/presentation/providers/auth_provider.dart';
 import 'package:hop_eir/features/notifications/notification_service.dart';
 
 final passengerRideWSProvider =
-    StateNotifierProvider.family<PassengerRideWSController, String, String>(
-      (ref, rideId) => PassengerRideWSController(ref, rideId),
-    );
+    StateNotifierProvider.family<PassengerRideWSController, String, int>(
+  (ref, rideId) => PassengerRideWSController(ref, rideId),
+);
 
 final Set<String> _notifiedRides = {};
-final Set<String> _404Rides = {};
+final Set<int> _404Rides = {};
+final Set<int> _finalRides = {};
+bool isRideFinalCached(int rideId) => _finalRides.contains(rideId);
 
 class PassengerRideWSController extends StateNotifier<String> {
   final Ref ref;
-  final String rideId;
+  final int rideId;
+
   WebSocketChannel? _channel;
-  bool _isConnected = false;
+  StreamSubscription? _subscription;
+
   bool _isFinal = false;
+  bool _isConnecting = false;
+  bool _isDisposed = false;
+
+  Timer? _reconnectTimer;
+  int _retry = 0;
+  static const int _maxRetry = 5;
 
   PassengerRideWSController(this.ref, this.rideId) : super('pending') {
-    Future.microtask(_initialize);
+    Future.microtask(() => _initializeSafely());
   }
 
-  Future<void> _initialize() async {
-    if (_404Rides.contains(rideId)) {
-      state = 'not_found';
-      return;
+  void _log(String msg) => print("[PassengerWS][ride=$rideId] $msg");
+
+  Future<void> _initializeSafely() async {
+    try {
+      if (_isDisposed) return;
+
+      if (_404Rides.contains(rideId)) {
+        state = 'not_found';
+        return;
+      }
+
+      if (isRideFinalCached(rideId)) {
+        _isFinal = true;
+        state = "completed";
+        _log("🔒 Already final (cached). WS not required");
+        return;
+      }
+
+      final status = await _fetchInitialStatus();
+
+      if (_isFinalStatus(status)) {
+        _isFinal = true;
+        _finalRides.add(rideId);
+        _log("🔒 Ride is final ($status). WS not required");
+        return;
+      }
+
+      await _connectSafely();
+    } catch (e, st) {
+      _log("❌ init error: $e");
+      _log("$st");
+      _scheduleReconnect();
     }
-
-    final status = await _fetchInitialStatus();
-
-    if (_isFinalStatus(status)) {
-      _isFinal = true;
-      return;
-    }
-
-    _connect();
   }
 
   Future<String> _fetchInitialStatus() async {
@@ -48,105 +82,174 @@ class PassengerRideWSController extends StateNotifier<String> {
       );
 
       if (response.statusCode == 200) {
-        final data = jsonDecode(response.body)[0];
-        final status = data['status']?.toString().toLowerCase();
+        final decoded = jsonDecode(response.body);
 
-        if (status != null) {
-          state = status;
+        if (decoded is List && decoded.isNotEmpty) {
+          final data = decoded[0];
+          final status = data['status']?.toString().toLowerCase();
 
-          if (_isFinalStatus(status)) {
-            _isFinal = true;
+          if (status != null) {
+            state = status;
+
+            if (_isFinalStatus(status)) {
+              _isFinal = true;
+              _finalRides.add(rideId);
+            }
+
+            return status;
           }
-
-          return status;
         }
       } else if (response.statusCode == 404) {
         _404Rides.add(rideId);
-        print("🚫 Ride #$rideId not found (404)");
         state = 'not_found';
+        _log("🚫 Ride not found (404)");
         return 'not_found';
       }
 
-      print("❌ Failed to fetch ride status: ${response.statusCode}");
+      _log("❌ Failed to fetch status: ${response.statusCode}");
     } catch (e) {
-      print("❌ Exception fetching ride status: $e");
+      _log("❌ Exception fetching status: $e");
     }
 
     state = 'pending';
     return 'pending';
   }
 
-  void _connect() {
-    if (_isConnected || _isFinal || _404Rides.contains(rideId)) return;
+  Uri _buildWsUri() {
+    final user = ref.read(authNotifierProvider).user;
+    final userId = user?.userId.toString();
 
-    final url = 'wss://hopeir.onrender.com/ws/ride/$rideId/';
-    print("🔌 Connecting to WS for ride #$rideId");
+    return Uri(
+      scheme: "wss",
+      host: "hopeir.onrender.com",
+      path: "/ws/ride/$rideId/",
+      queryParameters: userId == null ? null : {"user_id": userId},
+    );
+  }
+
+  Future<void> _connectSafely() async {
+    if (_isDisposed) return;
+    if (_isFinal) return;
+    if (_isConnecting) return;
+    if (_retry >= _maxRetry) return;
+
+    _isConnecting = true;
 
     try {
-      _channel = WebSocketChannel.connect(Uri.parse(url));
-      _isConnected = true;
+      final wsUri = _buildWsUri();
+      _log("🔌 Connecting → $wsUri");
 
-      _channel!.stream.listen(
+      await _subscription?.cancel();
+      _subscription = null;
+
+      try {
+        _channel?.sink.close();
+      } catch (_) {}
+      _channel = null;
+
+      // ✅ IMPORTANT: Force IO channel for mobile
+      _channel = IOWebSocketChannel.connect(
+        wsUri.toString(),
+        pingInterval: const Duration(seconds: 10),
+      );
+
+      _subscription = _channel!.stream.listen(
         (message) {
           try {
-            final data = jsonDecode(message);
-            final newStatus = data['status']?.toString().toLowerCase();
+            final decoded = jsonDecode(message);
 
-            if (newStatus != null && newStatus != state) {
+            if (decoded is! Map) return;
+
+            final newStatus = decoded['status']?.toString().toLowerCase();
+            if (newStatus == null) return;
+
+            if (newStatus != state) {
               state = newStatus;
               _maybeNotify(newStatus);
 
               if (_isFinalStatus(newStatus)) {
                 _isFinal = true;
+                _finalRides.add(rideId);
+                _log("🔒 Ride final via WS ($newStatus). Closing.");
                 _disconnect();
               }
             }
           } catch (e) {
-            print("❌ WS decode error for ride #$rideId: $e");
+            _log("⚠️ decode error: $e");
           }
         },
         onDone: () {
-          print("🚫 WS closed for ride #$rideId");
-          _isConnected = false;
+          _log("🚫 WS closed");
+          if (!_isDisposed && !_isFinal) _scheduleReconnect();
         },
-        onError: (error) {
-          print("❌ WS error for ride #$rideId: $error");
-          _isConnected = false;
+        onError: (err) {
+          _log("❌ WS error: $err");
+          if (!_isDisposed && !_isFinal) _scheduleReconnect();
         },
+        cancelOnError: true,
       );
-    } catch (e) {
-      print("❌ Exception during WS connect for ride #$rideId: $e");
+
+      _retry = 0;
+      _log("✅ Connected");
+    } catch (e, st) {
+      _log("❌ connect exception: $e");
+      _log("$st");
+      _scheduleReconnect();
+    } finally {
+      _isConnecting = false;
     }
+  }
+
+  void _scheduleReconnect() {
+    if (_isDisposed) return;
+    if (_isFinal) return;
+    if (_retry >= _maxRetry) return;
+
+    _retry++;
+    final delay = Duration(seconds: 2 * _retry);
+
+    _log("🔁 reconnect in ${delay.inSeconds}s (attempt=$_retry)");
+
+    _reconnectTimer?.cancel();
+    _reconnectTimer = Timer(delay, () {
+      if (!_isDisposed) _connectSafely();
+    });
   }
 
   void _maybeNotify(String status) {
     final key = '$rideId:$status';
-    if (!_notifiedRides.contains(key) &&
-        !_404Rides.contains(rideId) &&
-        status != 'not_found') {
-      print(
-        "🔔 Showing Notification → 🚘 Ride #$rideId is now ${status.toUpperCase()}",
-      );
 
-      LocalNotificationHelper.showNotification(
-        '🚘 Ride Status Updated',
-        'Your ride is now ${status.toUpperCase()}',
-      );
+    if (_notifiedRides.contains(key)) return;
+    if (_404Rides.contains(rideId)) return;
+    if (status == 'not_found') return;
 
-      _notifiedRides.add(key);
-    }
+    _log("🔔 Notification → ${status.toUpperCase()}");
+
+    LocalNotificationHelper.showNotification(
+      '🚘 Ride Status Updated',
+      'Your ride is now ${status.toUpperCase()}',
+    );
+
+    _notifiedRides.add(key);
   }
 
   bool _isFinalStatus(String status) =>
       status == 'completed' || status == 'cancelled';
 
   void _disconnect() {
-    _channel?.sink.close();
-    _isConnected = false;
+    try {
+      _subscription?.cancel();
+      _subscription = null;
+
+      _channel?.sink.close();
+      _channel = null;
+    } catch (_) {}
   }
 
   @override
   void dispose() {
+    _isDisposed = true;
+    _reconnectTimer?.cancel();
     _disconnect();
     super.dispose();
   }

@@ -72,7 +72,7 @@ class _SearchedRidesPageState extends ConsumerState<SearchedRidesPage>
         _requestedRides.add(ride);
       });
 
-      ref.listenManual<String>(passengerRideWSProvider(ride.toString()), (
+      ref.listenManual<String>(passengerRideWSProvider(ride), (
         previous,
         next,
       ) {
