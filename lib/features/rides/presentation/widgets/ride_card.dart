@@ -1,3 +1,5 @@
+import 'dart:async';
+
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:google_fonts/google_fonts.dart';
@@ -29,11 +31,17 @@ class RideCard extends ConsumerStatefulWidget {
 class _RideCardState extends ConsumerState<RideCard> {
   bool _actionInProgress = false;
 
+  bool _isRideActiveForTracking(String status) {
+    final s = status.toLowerCase();
+    return s == 'ongoing' || s == 'started' || s == 'in_progress';
+  }
+
   @override
   Widget build(BuildContext context) {
     final ride = widget.ride;
+
     final wsState = ref.watch(rideWSControllerProvider(ride.id));
-    final status = wsState.status;
+    final status = wsState.status.toLowerCase();
 
     final vehicleAsync = ref.watch(vehicleByIdProvider(ride.vehicle));
     final fromStationAsync = ref.watch(stationByIdProvider(ride.startLocation));
@@ -43,8 +51,15 @@ class _RideCardState extends ConsumerState<RideCard> {
         DateFormat('EEE, MMM d | h:mm a').format(ride.startTime);
 
     final showStart = status == "pending" || status == "scheduled";
-    final showEnd = status == "ongoing";
-    final showCancel = ["pending", "scheduled", "ongoing"].contains(status);
+    final showEnd =
+        status == "ongoing" || status == "in_progress" || status == "started";
+    final showCancel = [
+      "pending",
+      "scheduled",
+      "ongoing",
+      "in_progress",
+      "started"
+    ].contains(status);
 
     return Container(
       margin: const EdgeInsets.symmetric(horizontal: 16, vertical: 10),
@@ -80,7 +95,6 @@ class _RideCardState extends ConsumerState<RideCard> {
                     const Icon(Icons.arrow_downward_rounded, size: 16),
                     const SizedBox(height: 2),
                     _buildAsyncText(toStationAsync, (s) => s.name),
-
                     const SizedBox(height: 8),
 
                     // 🗺️ View on Map button
@@ -92,14 +106,20 @@ class _RideCardState extends ConsumerState<RideCard> {
                           onPressed: () {
                             final fromStation = fromStationAsync.value;
                             final toStation = toStationAsync.value;
-
                             if (fromStation == null || toStation == null)
                               return;
+
+                            // ✅ ensure WS connected for tracking updates
+                            ref
+                                .read(
+                                    rideWSControllerProvider(ride.id).notifier)
+                                .connect();
 
                             Navigator.push(
                               context,
                               MaterialPageRoute(
                                 builder: (_) => RideMapPage(
+                                  rideId: ride.id,
                                   fromLat: fromStation.latitude,
                                   fromLng: fromStation.longitude,
                                   toLat: toStation.latitude,
@@ -156,7 +176,6 @@ class _RideCardState extends ConsumerState<RideCard> {
           const SizedBox(height: 18),
 
           /// 🎯 Action Buttons
-          /// 🎯 Action Buttons
           Row(
             mainAxisAlignment: MainAxisAlignment.spaceEvenly,
             children: [
@@ -170,9 +189,7 @@ class _RideCardState extends ConsumerState<RideCard> {
                   Navigator.push(
                     context,
                     MaterialPageRoute(
-                      builder: (_) => RideChatPage(
-                        rideId: ride.id,
-                      ),
+                      builder: (_) => RideChatPage(rideId: ride.id),
                     ),
                   );
                 },
@@ -193,6 +210,36 @@ class _RideCardState extends ConsumerState<RideCard> {
               ),
             ],
           ),
+
+          // ✅ Tracking status row
+          const SizedBox(height: 10),
+          Row(
+            children: [
+              const Icon(Icons.my_location, size: 16, color: Colors.grey),
+              const SizedBox(width: 6),
+              Text(
+                wsState.driverTrackingEnabled
+                    ? "Live tracking ON"
+                    : "Live tracking OFF",
+                style: GoogleFonts.poppins(
+                  fontSize: 12,
+                  color:
+                      wsState.driverTrackingEnabled ? Colors.green : Colors.red,
+                  fontWeight: FontWeight.w600,
+                ),
+              ),
+            ],
+          ),
+
+          if (wsState.lastError != null) ...[
+            const SizedBox(height: 6),
+            Text(
+              wsState.lastError!,
+              maxLines: 2,
+              overflow: TextOverflow.ellipsis,
+              style: GoogleFonts.poppins(fontSize: 12, color: Colors.red),
+            ),
+          ],
         ],
       ),
     );
@@ -228,32 +275,6 @@ class _RideCardState extends ConsumerState<RideCard> {
     );
   }
 
-  // /// 🚦 Action Buttons (Start/End/Cancel)
-  // Widget _buildActionButton(String label, Color color) {
-  //   return ElevatedButton.icon(
-  //     onPressed: _actionInProgress
-  //         ? null
-  //         : () async {
-  //             setState(() => _actionInProgress = true);
-  //             await ref
-  //                 .read(rideWSControllerProvider(widget.ride.id).notifier)
-  //                 .sendAction(label
-  //                     .toLowerCase()); // Ensure no value is used from this call
-  //             if (mounted) {
-  //               setState(() => _actionInProgress = false);
-  //             }
-  //             widget.onActionCompleted();
-  //           },
-  //     icon: Icon(_getActionIcon(label), size: 18),
-  //     label: Text(label, style: GoogleFonts.poppins(fontSize: 14)),
-  //     style: ElevatedButton.styleFrom(
-  //       foregroundColor: Colors.white,
-  //       backgroundColor: color,
-  //       padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
-  //       shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
-  //     ),
-  //   );
-  // }
   /// 🚦 Action Buttons (Start / End / Cancel)
   Widget _buildActionButton(String label, Color color) {
     final action = _mapLabelToAction(label);
@@ -264,17 +285,39 @@ class _RideCardState extends ConsumerState<RideCard> {
           : () async {
               setState(() => _actionInProgress = true);
 
+              final ws = ref.read(
+                rideWSControllerProvider(widget.ride.id).notifier,
+              );
+
               try {
-                // ✅ Sends ONLY valid backend actions: start | end | cancel
-                ref
-                    .read(
-                      rideWSControllerProvider(widget.ride.id).notifier,
-                    )
-                    .sendAction(action);
-              } finally {
-                if (mounted) {
-                  setState(() => _actionInProgress = false);
+                ws.connect();
+
+                // ✅ send action
+                ws.sendAction(action);
+
+                // ✅ MAIN FIX:
+                // start tracking AFTER backend updates status
+                if (action == "start") {
+                  // wait a bit for ride_status_update
+                  await Future.delayed(const Duration(seconds: 1));
+
+                  final latest =
+                      ref.read(rideWSControllerProvider(widget.ride.id)).status;
+
+                  // if still not active, wait again
+                  if (!_isRideActiveForTracking(latest)) {
+                    await Future.delayed(const Duration(seconds: 1));
+                  }
+
+                  // finally start tracking
+                  await ws.startDriverLiveTracking();
                 }
+
+                if (action == "end" || action == "cancel") {
+                  await ws.stopDriverLiveTracking();
+                }
+              } finally {
+                if (mounted) setState(() => _actionInProgress = false);
                 widget.onActionCompleted();
               }
             },
@@ -304,7 +347,7 @@ class _RideCardState extends ConsumerState<RideCard> {
       case 'cancel':
         return 'cancel';
       default:
-        return null; // 🚫 prevents invalid action
+        return null;
     }
   }
 
@@ -330,7 +373,6 @@ class _RideCardState extends ConsumerState<RideCard> {
     );
   }
 
-  /// 💫 Shimmer Placeholder
   Widget _shimmerText({required double width}) {
     return Container(
       width: width,
@@ -342,28 +384,30 @@ class _RideCardState extends ConsumerState<RideCard> {
     );
   }
 
-  /// 🎨 Status Colors
   Color _getStatusColor(String status) {
     switch (status.toLowerCase()) {
       case "scheduled":
-        return const Color(0xFF64B5F6); // Blue
+        return const Color(0xFF64B5F6);
       case "ongoing":
-        return const Color(0xFFFFA726); // Orange
+      case "in_progress":
+      case "started":
+        return const Color(0xFFFFA726);
       case "completed":
-        return const Color(0xFF66BB6A); // Green
+        return const Color(0xFF66BB6A);
       case "cancelled":
-        return const Color(0xFFEF5350); // Red
+        return const Color(0xFFEF5350);
       default:
         return Colors.grey;
     }
   }
 
-  /// 🧩 Status Icons
   IconData _getStatusIcon(String status) {
     switch (status.toLowerCase()) {
       case "scheduled":
         return Icons.schedule;
       case "ongoing":
+      case "in_progress":
+      case "started":
         return Icons.directions_run;
       case "completed":
         return Icons.check_circle_outline;
@@ -374,7 +418,6 @@ class _RideCardState extends ConsumerState<RideCard> {
     }
   }
 
-  /// 🧩 Action Icons
   IconData _getActionIcon(String label) {
     switch (label.toLowerCase()) {
       case "start":
@@ -388,7 +431,6 @@ class _RideCardState extends ConsumerState<RideCard> {
     }
   }
 
-  /// 🔤 Capitalize Status
   String _capitalize(String s) {
     return s.isEmpty ? s : s[0].toUpperCase() + s.substring(1).toLowerCase();
   }

@@ -1,0 +1,37 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<gpx version="1.1" creator="HopEir GPX Generator"
+     xmlns="http://www.topografix.com/GPX/1/1">
+  <metadata>
+    <name>Vantage Apartments → CRH Group Rathfarnham (D16)</name>
+  </metadata>
+
+  <trk>
+    <name>HopEir Driver Track</name>
+    <trkseg>
+      <!-- Near Stillorgan / Vantage Apartments area -->
+      <trkpt lat="53.292900" lon="-6.197200"><ele>12</ele></trkpt>
+      <trkpt lat="53.292700" lon="-6.198500"><ele>12</ele></trkpt>
+      <trkpt lat="53.292200" lon="-6.200800"><ele>12</ele></trkpt>
+
+      <!-- Heading north-west towards Dundrum -->
+      <trkpt lat="53.291500" lon="-6.204100"><ele>13</ele></trkpt>
+      <trkpt lat="53.290900" lon="-6.207400"><ele>13</ele></trkpt>
+      <trkpt lat="53.289900" lon="-6.210800"><ele>14</ele></trkpt>
+
+      <!-- Dundrum area -->
+      <trkpt lat="53.288800" lon="-6.214000"><ele>14</ele></trkpt>
+      <trkpt lat="53.287600" lon="-6.218000"><ele>15</ele></trkpt>
+      <trkpt lat="53.286400" lon="-6.222200"><ele>15</ele></trkpt>
+
+      <!-- Continue towards Rathfarnham -->
+      <trkpt lat="53.285000" lon="-6.226800"><ele>16</ele></trkpt>
+      <trkpt lat="53.283500" lon="-6.232100"><ele>16</ele></trkpt>
+      <trkpt lat="53.281900" lon="-6.238000"><ele>17</ele></trkpt>
+
+      <!-- Near Rathfarnham / CRH Group (D16 region) -->
+      <trkpt lat="53.280800" lon="-6.243700"><ele>18</ele></trkpt>
+      <trkpt lat="53.279800" lon="-6.248900"><ele>18</ele></trkpt>
+      <trkpt lat="53.279000" lon="-6.252800"><ele>18</ele></trkpt>
+    </trkseg>
+  </trk>
+</gpx>

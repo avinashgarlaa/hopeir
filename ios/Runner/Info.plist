@@ -49,6 +49,13 @@
 	<string>This app uses notifications to alert you about ride updates like the start and end of your rides.</string>
 	<key>UIApplicationSupportsIndirectInputEvents</key>
 	<true/>
+		<!-- ✅ Location permissions (Required for live ride tracking) -->
+	<key>NSLocationWhenInUseUsageDescription</key>
+	<string>We need your location to enable live ride tracking.</string>
+
+	<key>NSLocationAlwaysAndWhenInUseUsageDescription</key>
+	<string>We need your location to share live location during an ongoing ride.</string>
+
 
 	<!-- ✅ iPhone + iPad support -->
 	<key>UIDeviceFamily</key>

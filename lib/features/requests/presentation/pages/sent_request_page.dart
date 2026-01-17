@@ -2,7 +2,9 @@ import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:google_fonts/google_fonts.dart';
 import 'package:hop_eir/features/rides/presentation/pages/ride_chat_page.dart';
+import 'package:hop_eir/features/rides/presentation/pages/ride_map_page.dart'; // ✅ added
 import 'package:hop_eir/features/rides/presentation/providers/ride_provider.dart';
+import 'package:hop_eir/features/rides/presentation/controllers/ride_ws_controller.dart'; // ✅ added
 import 'package:hop_eir/features/stations/presentation/providers/providers.dart';
 import 'package:intl/intl.dart';
 import 'package:hop_eir/features/auth/presentation/providers/auth_provider.dart';
@@ -10,9 +12,6 @@ import 'package:hop_eir/features/notifications/notification_service.dart';
 import 'package:hop_eir/features/requests/domain/entities/ride_request.dart';
 import 'package:hop_eir/features/requests/presentation/controllers/ride_request_ws_controller.dart';
 import 'package:hop_eir/features/requests/presentation/controllers/passanger_ride_ws_controller.dart';
-
-// ✅ TODO: replace this with your real chat page import
-// import 'package:hop_eir/features/chat/presentation/pages/chat_page.dart';
 
 class SentRequestsPage extends ConsumerStatefulWidget {
   static const primaryColor = Color.fromRGBO(137, 177, 98, 1);
@@ -38,7 +37,8 @@ class _SentRequestsPageState extends ConsumerState<SentRequestsPage> {
     final wsProvider = rideRequestWSControllerProvider(userId.toString());
     final wsState = ref.watch(wsProvider);
 
-    // ✅ Listener only once (notification logic)
+    /// ✅ Listener only once (notification logic)
+    /// IMPORTANT: this is safe because it is still inside build method
     if (!_listenerAttached) {
       _listenerAttached = true;
 
@@ -51,6 +51,7 @@ class _SentRequestsPageState extends ConsumerState<SentRequestsPage> {
 
         for (final request in current) {
           final old = oldMap[request.id];
+
           if (old != null && old.status != request.status) {
             LocalNotificationHelper.showNotification(
               '📢 Request Status Updated',
@@ -92,17 +93,20 @@ class _SentRequestsPageState extends ConsumerState<SentRequestsPage> {
 
         final isAccepted = request.status.toLowerCase() == "accepted";
 
-        // ✅ watch ride ws only if accepted
+        // ✅ ride status WS only if accepted
         final rideStatus = isAccepted
             ? ref.watch(passengerRideWSProvider(request.rideId))
             : "not_connected";
 
-        // ✅ Chat allowed rules
+        // ✅ map allowed rules
         final isFinalRideCached = isRideFinalCached(request.rideId);
         final isFinalRideByStatus =
             rideStatus == "completed" || rideStatus == "cancelled";
 
-        // ✅ Final decision: can chat?
+        final canOpenMap =
+            isAccepted && !isFinalRideCached && !isFinalRideByStatus;
+
+        // ✅ can chat rules
         final canChat = isAccepted &&
             rideStatus != "not_connected" &&
             !isFinalRideCached &&
@@ -113,6 +117,7 @@ class _SentRequestsPageState extends ConsumerState<SentRequestsPage> {
           rideStatus: rideStatus,
           isAccepted: isAccepted,
           canChat: canChat,
+          canOpenMap: canOpenMap,
         );
       },
     );
@@ -124,12 +129,14 @@ class _SentRequestCard extends ConsumerWidget {
   final String rideStatus;
   final bool isAccepted;
   final bool canChat;
+  final bool canOpenMap;
 
   const _SentRequestCard({
     required this.request,
     required this.rideStatus,
     required this.isAccepted,
     required this.canChat,
+    required this.canOpenMap,
   });
 
   static const Color primaryColor = Color.fromRGBO(137, 177, 98, 1);
@@ -163,6 +170,7 @@ class _SentRequestCard extends ConsumerWidget {
           final toStationAsync = ref.watch(
             stationByIdProvider(ride.endLocation),
           );
+
           final driverAsync = ref.watch(getUserByIdProviders(ride.user));
 
           final startTime = DateTime.tryParse(ride.startTime.toString());
@@ -226,7 +234,7 @@ class _SentRequestCard extends ConsumerWidget {
 
               const SizedBox(height: 12),
 
-              // Status chips (safe: Wrap)
+              // Status chips
               Wrap(
                 spacing: 10,
                 runSpacing: 8,
@@ -248,9 +256,71 @@ class _SentRequestCard extends ConsumerWidget {
 
               const SizedBox(height: 14),
 
-              // ✅ Chat button (only when allowed)
+              // ✅ Buttons: TRACK + CHAT
               Row(
                 children: [
+                  // ✅ TRACK BUTTON
+                  Expanded(
+                    child: ElevatedButton.icon(
+                      onPressed: canOpenMap
+                          ? () async {
+                              // ✅ IMPORTANT:
+                              // connect tracking WS (to receive driver_location)
+                              ref
+                                  .read(
+                                    rideWSControllerProvider(request.rideId)
+                                        .notifier,
+                                  )
+                                  .connect();
+
+                              // ✅ fetch stations for lat/lng
+                              final fromStation = await ref.read(
+                                stationByIdProvider(ride.startLocation).future,
+                              );
+                              final toStation = await ref.read(
+                                stationByIdProvider(ride.endLocation).future,
+                              );
+
+                              Navigator.push(
+                                context,
+                                MaterialPageRoute(
+                                  builder: (_) => RideMapPage(
+                                    rideId: request.rideId,
+                                    fromLat: (fromStation.latitude as num)
+                                        .toDouble(),
+                                    fromLng: (fromStation.longitude as num)
+                                        .toDouble(),
+                                    toLat:
+                                        (toStation.latitude as num).toDouble(),
+                                    toLng:
+                                        (toStation.longitude as num).toDouble(),
+                                    fromName: fromStation.name,
+                                    toName: toStation.name,
+                                  ),
+                                ),
+                              );
+                            }
+                          : null,
+                      icon: const Icon(Icons.map_outlined, size: 18),
+                      label: Text(
+                        canOpenMap ? "Track" : "Track Disabled",
+                        style: GoogleFonts.poppins(fontWeight: FontWeight.w600),
+                      ),
+                      style: ElevatedButton.styleFrom(
+                        backgroundColor: canOpenMap ? Colors.blue : Colors.grey,
+                        foregroundColor: Colors.white,
+                        elevation: 0,
+                        padding: const EdgeInsets.symmetric(vertical: 12),
+                        shape: RoundedRectangleBorder(
+                          borderRadius: BorderRadius.circular(14),
+                        ),
+                      ),
+                    ),
+                  ),
+
+                  const SizedBox(width: 12),
+
+                  // ✅ CHAT BUTTON
                   Expanded(
                     child: ElevatedButton.icon(
                       onPressed: canChat
@@ -258,14 +328,8 @@ class _SentRequestCard extends ConsumerWidget {
                               Navigator.push(
                                 context,
                                 MaterialPageRoute(
-                                    builder: (_) =>
-                                        RideChatPage(rideId: request.rideId)),
-                              );
-
-                              ScaffoldMessenger.of(context).showSnackBar(
-                                const SnackBar(
-                                  content: Text(
-                                      "Open Chat (integrate your ChatPage here)"),
+                                  builder: (_) =>
+                                      RideChatPage(rideId: request.rideId),
                                 ),
                               );
                             }
@@ -300,6 +364,18 @@ class _SentRequestCard extends ConsumerWidget {
                   style: GoogleFonts.poppins(fontSize: 12, color: Colors.grey),
                 ),
               ],
+
+              if (!canOpenMap && isAccepted) ...[
+                const SizedBox(height: 6),
+                Text(
+                  (rideStatus == "completed" ||
+                          rideStatus == "cancelled" ||
+                          isRideFinalCached(request.rideId))
+                      ? "Tracking disabled: Ride completed/cancelled."
+                      : "Tracking will show driver live location once ride starts.",
+                  style: GoogleFonts.poppins(fontSize: 12, color: Colors.grey),
+                ),
+              ],
             ],
           );
         },
@@ -316,6 +392,8 @@ class _SentRequestCard extends ConsumerWidget {
       case 'rejected':
         return Icons.highlight_off_rounded;
       case 'ongoing':
+      case 'in_progress':
+      case 'started':
         return Icons.directions_car_filled_rounded;
       case 'completed':
         return Icons.emoji_events_rounded;
@@ -416,6 +494,8 @@ class _SentRequestCard extends ConsumerWidget {
       case 'rejected':
         return const Color(0xFFF8D7DA);
       case 'ongoing':
+      case 'in_progress':
+      case 'started':
         return const Color(0xFFD1ECF1);
       case 'completed':
         return const Color(0xFFE2E3E5);

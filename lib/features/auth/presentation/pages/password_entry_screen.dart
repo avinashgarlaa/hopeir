@@ -117,10 +117,9 @@ class _PasswordEntryScreenState extends ConsumerState<PasswordEntryScreen> {
                                 width: double.infinity,
                                 height: 50,
                                 child: ModernButton(
-                                  label:
-                                      isLoading
-                                          ? 'Creating...'
-                                          : 'Create Account',
+                                  label: isLoading
+                                      ? 'Creating...'
+                                      : 'Create Account',
                                   onTap: _signUp,
                                 ),
                               ),
@@ -149,14 +148,14 @@ class _PasswordEntryScreenState extends ConsumerState<PasswordEntryScreen> {
       decoration: InputDecoration(
         hintText: "Create Password",
         hintStyle: GoogleFonts.poppins(color: primaryColor),
-        prefixIcon: Icon(Icons.lock_outline, color: primaryColor),
+        prefixIcon: const Icon(Icons.lock_outline, color: primaryColor),
         suffixIcon: IconButton(
           icon: Icon(
             isPasswordVisible ? Icons.visibility : Icons.visibility_off,
             color: primaryColor,
           ),
-          onPressed:
-              () => setState(() => isPasswordVisible = !isPasswordVisible),
+          onPressed: () =>
+              setState(() => isPasswordVisible = !isPasswordVisible),
         ),
         filled: true,
         fillColor: Colors.white.withOpacity(0.5),
@@ -166,7 +165,7 @@ class _PasswordEntryScreenState extends ConsumerState<PasswordEntryScreen> {
         ),
         focusedBorder: OutlineInputBorder(
           borderRadius: BorderRadius.circular(16),
-          borderSide: BorderSide(color: primaryColor, width: 1.5),
+          borderSide: const BorderSide(color: primaryColor, width: 1.5),
         ),
       ),
       validator: (value) {

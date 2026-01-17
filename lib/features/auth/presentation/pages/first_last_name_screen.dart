@@ -106,15 +106,12 @@ class _FirstLastNameScreenState extends State<FirstLastNameScreen> {
                                       Navigator.push(
                                         context,
                                         MaterialPageRoute(
-                                          builder:
-                                              (_) => UsernameScreen(
-                                                firstName:
-                                                    _firstNameController.text
-                                                        .trim(),
-                                                lastName:
-                                                    _lastNameController.text
-                                                        .trim(),
-                                              ),
+                                          builder: (_) => UsernameScreen(
+                                            firstName: _firstNameController.text
+                                                .trim(),
+                                            lastName:
+                                                _lastNameController.text.trim(),
+                                          ),
                                         ),
                                       );
                                     }
@@ -155,11 +152,11 @@ class _FirstLastNameScreenState extends State<FirstLastNameScreen> {
         ),
         focusedBorder: OutlineInputBorder(
           borderRadius: BorderRadius.circular(16),
-          borderSide: BorderSide(color: primaryColor, width: 1.5),
+          borderSide: const BorderSide(color: primaryColor, width: 1.5),
         ),
       ),
-      validator:
-          (value) => value == null || value.isEmpty ? 'Enter $label' : null,
+      validator: (value) =>
+          value == null || value.isEmpty ? 'Enter $label' : null,
     );
   }
 }

@@ -105,6 +105,7 @@ class RideDetailsPage extends ConsumerWidget {
                                             context,
                                             MaterialPageRoute(
                                               builder: (_) => RideMapPage(
+                                                rideId: ride.id,
                                                 fromLat: fromStation.latitude,
                                                 fromLng: fromStation.longitude,
                                                 toLat: toStation.latitude,

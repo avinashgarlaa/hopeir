@@ -317,7 +317,7 @@ class _LoginScreenState extends ConsumerState<LoginScreen> {
         ),
         focusedBorder: OutlineInputBorder(
           borderRadius: BorderRadius.circular(16),
-          borderSide: BorderSide(color: primaryColor, width: 1.5),
+          borderSide: const BorderSide(color: primaryColor, width: 1.5),
         ),
       ),
       validator: validator,
@@ -336,7 +336,7 @@ class _LoginScreenState extends ConsumerState<LoginScreen> {
       decoration: InputDecoration(
         hintText: "Password",
         hintStyle: GoogleFonts.poppins(color: primaryColor),
-        prefixIcon: Icon(Icons.lock_outline, color: primaryColor),
+        prefixIcon: const Icon(Icons.lock_outline, color: primaryColor),
         suffixIcon: IconButton(
           icon: Icon(
             isPasswordVisible ? Icons.visibility : Icons.visibility_off,
@@ -354,7 +354,7 @@ class _LoginScreenState extends ConsumerState<LoginScreen> {
         ),
         focusedBorder: OutlineInputBorder(
           borderRadius: BorderRadius.circular(16),
-          borderSide: BorderSide(color: primaryColor, width: 1.5),
+          borderSide: const BorderSide(color: primaryColor, width: 1.5),
         ),
       ),
       validator: (value) {

@@ -6,10 +6,13 @@ import 'dart:convert';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:http/http.dart' as http;
 import 'package:web_socket_channel/web_socket_channel.dart';
-import 'package:web_socket_channel/io.dart'; // ✅ IMPORTANT
+import 'package:web_socket_channel/io.dart';
 
 import 'package:hop_eir/features/auth/presentation/providers/auth_provider.dart';
 import 'package:hop_eir/features/notifications/notification_service.dart';
+
+// ✅ important for live location receive
+import 'package:hop_eir/features/rides/presentation/controllers/ride_ws_controller.dart';
 
 final passengerRideWSProvider =
     StateNotifierProvider.family<PassengerRideWSController, String, int>(
@@ -32,7 +35,11 @@ class PassengerRideWSController extends StateNotifier<String> {
   bool _isConnecting = false;
   bool _isDisposed = false;
 
+  bool _wsForbidden = false;
+
   Timer? _reconnectTimer;
+  Timer? _statusPollTimer;
+
   int _retry = 0;
   static const int _maxRetry = 5;
 
@@ -67,11 +74,17 @@ class PassengerRideWSController extends StateNotifier<String> {
         return;
       }
 
-      await _connectSafely();
+      if (_isWsAllowedStatus(status)) {
+        _connectRideSocketForLiveTracking();
+        await _connectSafely();
+      } else {
+        _log("⏳ Ride not accepted yet ($status). Polling until accepted...");
+        _startStatusPolling();
+      }
     } catch (e, st) {
       _log("❌ init error: $e");
       _log("$st");
-      _scheduleReconnect();
+      _startStatusPolling();
     }
   }
 
@@ -115,6 +128,40 @@ class PassengerRideWSController extends StateNotifier<String> {
     return 'pending';
   }
 
+  void _startStatusPolling() {
+    _statusPollTimer?.cancel();
+
+    _statusPollTimer = Timer.periodic(const Duration(seconds: 2), (_) async {
+      if (_isDisposed || _isFinal) return;
+
+      final status = await _fetchInitialStatus();
+
+      if (_isFinalStatus(status)) {
+        _isFinal = true;
+        _finalRides.add(rideId);
+        _log("🔒 Ride final via polling ($status). Stop polling.");
+        _stopStatusPolling();
+        _disconnect();
+        return;
+      }
+
+      if (_isWsAllowedStatus(status)) {
+        _log("✅ Ride allowed for WS ($status). Connecting...");
+
+        _connectRideSocketForLiveTracking(); // ✅ IMPORTANT
+        _stopStatusPolling();
+
+        _wsForbidden = false;
+        await _connectSafely();
+      }
+    });
+  }
+
+  void _stopStatusPolling() {
+    _statusPollTimer?.cancel();
+    _statusPollTimer = null;
+  }
+
   Uri _buildWsUri() {
     final user = ref.read(authNotifierProvider).user;
     final userId = user?.userId.toString();
@@ -127,11 +174,33 @@ class PassengerRideWSController extends StateNotifier<String> {
     );
   }
 
+  // ✅ passenger must connect RideWSController to receive driver_location
+  void _connectRideSocketForLiveTracking() {
+    try {
+      ref.read(rideWSControllerProvider(rideId).notifier).connect();
+      _log("📍 Connected RideWSController for driver live tracking");
+    } catch (e) {
+      _log("⚠️ RideWSController connect failed: $e");
+    }
+  }
+
   Future<void> _connectSafely() async {
     if (_isDisposed) return;
     if (_isFinal) return;
     if (_isConnecting) return;
     if (_retry >= _maxRetry) return;
+
+    if (!_isWsAllowedStatus(state)) {
+      _log("⛔ Skip WS connect (status=$state). Waiting for acceptance.");
+      _startStatusPolling();
+      return;
+    }
+
+    if (_wsForbidden) {
+      _log("⛔ WS forbidden earlier. Polling status until allowed again.");
+      _startStatusPolling();
+      return;
+    }
 
     _isConnecting = true;
 
@@ -147,7 +216,6 @@ class PassengerRideWSController extends StateNotifier<String> {
       } catch (_) {}
       _channel = null;
 
-      // ✅ IMPORTANT: Force IO channel for mobile
       _channel = IOWebSocketChannel.connect(
         wsUri.toString(),
         pingInterval: const Duration(seconds: 10),
@@ -157,15 +225,25 @@ class PassengerRideWSController extends StateNotifier<String> {
         (message) {
           try {
             final decoded = jsonDecode(message);
-
             if (decoded is! Map) return;
 
-            final newStatus = decoded['status']?.toString().toLowerCase();
+            String? newStatus;
+
+            if (decoded['type'] == 'ride_status_update') {
+              newStatus = decoded['status']?.toString().toLowerCase();
+            } else {
+              newStatus = decoded['status']?.toString().toLowerCase();
+            }
+
             if (newStatus == null) return;
 
             if (newStatus != state) {
               state = newStatus;
               _maybeNotify(newStatus);
+
+              if (_isWsAllowedStatus(newStatus)) {
+                _connectRideSocketForLiveTracking();
+              }
 
               if (_isFinalStatus(newStatus)) {
                 _isFinal = true;
@@ -183,7 +261,17 @@ class PassengerRideWSController extends StateNotifier<String> {
           if (!_isDisposed && !_isFinal) _scheduleReconnect();
         },
         onError: (err) {
-          _log("❌ WS error: $err");
+          final errStr = err.toString();
+          _log("❌ WS error: $errStr");
+
+          if (_isForbiddenWsError(errStr)) {
+            _log("⛔ 403 Forbidden. Stop reconnect. Poll status instead.");
+            _wsForbidden = true;
+            _disconnect();
+            _startStatusPolling();
+            return;
+          }
+
           if (!_isDisposed && !_isFinal) _scheduleReconnect();
         },
         cancelOnError: true,
@@ -200,9 +288,25 @@ class PassengerRideWSController extends StateNotifier<String> {
     }
   }
 
+  bool _isForbiddenWsError(String err) {
+    final lower = err.toLowerCase();
+    return lower.contains('status code: 403') ||
+        lower.contains('http status code: 403') ||
+        lower.contains('forbidden') ||
+        (lower.contains('was not upgraded to websocket') &&
+            lower.contains('403'));
+  }
+
   void _scheduleReconnect() {
     if (_isDisposed) return;
     if (_isFinal) return;
+
+    if (!_isWsAllowedStatus(state)) {
+      _log("⏳ Not accepted (status=$state). Polling instead.");
+      _startStatusPolling();
+      return;
+    }
+
     if (_retry >= _maxRetry) return;
 
     _retry++;
@@ -236,6 +340,15 @@ class PassengerRideWSController extends StateNotifier<String> {
   bool _isFinalStatus(String status) =>
       status == 'completed' || status == 'cancelled';
 
+  bool _isWsAllowedStatus(String status) {
+    final s = status.toLowerCase();
+    return s == 'accepted' ||
+        s == 'started' ||
+        s == 'ongoing' ||
+        s == 'in_progress' ||
+        s == 'arriving';
+  }
+
   void _disconnect() {
     try {
       _subscription?.cancel();
@@ -249,8 +362,13 @@ class PassengerRideWSController extends StateNotifier<String> {
   @override
   void dispose() {
     _isDisposed = true;
+
     _reconnectTimer?.cancel();
+    _reconnectTimer = null;
+
+    _stopStatusPolling();
     _disconnect();
+
     super.dispose();
   }
 }

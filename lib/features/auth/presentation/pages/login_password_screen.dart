@@ -150,14 +150,14 @@ class _PasswordLoginScreenState extends ConsumerState<PasswordLoginScreen> {
       decoration: InputDecoration(
         hintText: "Enter Password",
         hintStyle: GoogleFonts.poppins(color: primaryColor),
-        prefixIcon: Icon(Icons.lock_outline, color: primaryColor),
+        prefixIcon: const Icon(Icons.lock_outline, color: primaryColor),
         suffixIcon: IconButton(
           icon: Icon(
             isPasswordVisible ? Icons.visibility : Icons.visibility_off,
             color: primaryColor,
           ),
-          onPressed:
-              () => setState(() => isPasswordVisible = !isPasswordVisible),
+          onPressed: () =>
+              setState(() => isPasswordVisible = !isPasswordVisible),
         ),
         filled: true,
         fillColor: Colors.white.withOpacity(0.5),
@@ -167,7 +167,7 @@ class _PasswordLoginScreenState extends ConsumerState<PasswordLoginScreen> {
         ),
         focusedBorder: OutlineInputBorder(
           borderRadius: BorderRadius.circular(16),
-          borderSide: BorderSide(color: primaryColor, width: 1.5),
+          borderSide: const BorderSide(color: primaryColor, width: 1.5),
         ),
       ),
       validator: (value) {
