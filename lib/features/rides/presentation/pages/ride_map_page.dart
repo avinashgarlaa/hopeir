@@ -36,57 +36,145 @@ class RideMapPage extends ConsumerStatefulWidget {
   ConsumerState<RideMapPage> createState() => _RideMapPageState();
 }
 
-class _RideMapPageState extends ConsumerState<RideMapPage> {
+class _RideMapPageState extends ConsumerState<RideMapPage>
+    with SingleTickerProviderStateMixin {
   List<LatLng> routePoints = [];
   bool loading = true;
+  bool _mapReady = false;
 
-  late LatLng snappedStart;
-  late LatLng snappedEnd;
-
-  Timer? _forceReconnectTimer;
+  LatLng? snappedStart;
+  LatLng? snappedEnd;
 
   final MapController _mapController = MapController();
+
+  /// Camera follow
+  bool _followDriver = true;
+  bool _didFitOnce = false;
+
+  /// Riverpod subscription
+  ProviderSubscription<RideWSState>? _rideSub;
+
+  /// Smooth marker animation
+  LatLng? _animatedPos;
+  // ignore: unused_field
+  LatLng? _targetPos;
+
+  late final AnimationController _carAnimCtrl;
+
+  /// Camera throttle so map doesn't shake
+  DateTime _lastCameraMove = DateTime.fromMillisecondsSinceEpoch(0);
 
   @override
   void initState() {
     super.initState();
 
-    // ✅ connect ws
-    Future.microtask(() {
-      ref.read(rideWSControllerProvider(widget.rideId).notifier).connect();
-    });
+    _carAnimCtrl = AnimationController(
+      vsync: this,
+      duration: const Duration(milliseconds: 800),
+    );
 
-    // ✅ reconnect if disconnected only
-    _forceReconnectTimer = Timer.periodic(const Duration(seconds: 2), (t) {
-      final s = ref.read(rideWSControllerProvider(widget.rideId));
+    ref.read(rideWSControllerProvider(widget.rideId).notifier).connect();
 
-      // once location comes, stop auto reconnect loop
-      if (s.driverLatLng != null) {
-        t.cancel();
-        return;
-      }
+    /// ✅ Listen for driver location updates
+    _rideSub = ref.listenManual<RideWSState>(
+      rideWSControllerProvider(widget.rideId),
+      (prev, next) {
+        if (!mounted) return;
 
-      if (!s.connected || s.lastError != null) {
-        ref.read(rideWSControllerProvider(widget.rideId).notifier).connect();
-      }
-    });
+        final nextDriver = next.driverLatLng;
+        if (nextDriver == null) return;
+
+        // ✅ first point
+        if (_animatedPos == null) {
+          setState(() {
+            _animatedPos = nextDriver;
+            _targetPos = nextDriver;
+          });
+
+          // Fit once when map is ready
+          if (!_didFitOnce) {
+            _didFitOnce = true;
+            WidgetsBinding.instance.addPostFrameCallback((_) {
+              if (!mounted || !_mapReady) return;
+              _fitAll(nextDriver);
+            });
+          }
+          return;
+        }
+
+        // ✅ animate smoothly between old and new
+        _startCarAnimation(to: nextDriver);
+
+        // ✅ Follow (camera) ONLY IF enabled and only every 1.2 sec
+        if (_followDriver && _mapReady) {
+          final now = DateTime.now();
+          if (now.difference(_lastCameraMove).inMilliseconds > 1200) {
+            _lastCameraMove = now;
+
+            WidgetsBinding.instance.addPostFrameCallback((_) {
+              if (!mounted || !_mapReady) return;
+              _mapController.move(nextDriver, _mapController.camera.zoom);
+            });
+          }
+        }
+      },
+    );
 
     _prepareRoute();
   }
 
   @override
   void dispose() {
-    _forceReconnectTimer?.cancel();
-    _forceReconnectTimer = null;
+    _rideSub?.close();
+    _rideSub = null;
+
+    _carAnimCtrl.dispose();
     super.dispose();
   }
 
-  // ───────── ROUTE ─────────
+  // ───────────────────────────
+  // ✅ Car Smooth Animation
+  // ───────────────────────────
+  void _startCarAnimation({required LatLng to}) {
+    final from = _animatedPos!;
+    _targetPos = to;
 
+    _carAnimCtrl.stop();
+    _carAnimCtrl.reset();
+
+    _carAnimCtrl.addListener(() {
+      final p = Curves.easeInOut.transform(_carAnimCtrl.value);
+
+      final lat = from.latitude + (to.latitude - from.latitude) * p;
+      final lng = from.longitude + (to.longitude - from.longitude) * p;
+
+      if (!mounted) return;
+      setState(() => _animatedPos = LatLng(lat, lng));
+    });
+
+    _carAnimCtrl.forward();
+  }
+
+  // ───────────────────────────
+  // ROUTE
+  // ───────────────────────────
   Future<void> _prepareRoute() async {
-    snappedStart = await _snap(widget.fromLat, widget.fromLng);
-    snappedEnd = await _snap(widget.toLat, widget.toLng);
-    await _fetchRoute(snappedStart, snappedEnd);
+    try {
+      final start = await _snap(widget.fromLat, widget.fromLng);
+      final end = await _snap(widget.toLat, widget.toLng);
+
+      snappedStart = start;
+      snappedEnd = end;
+
+      if (!mounted) return;
+      setState(() {});
+
+      await _fetchRoute(start, end);
+    } catch (e) {
+      debugPrint("❌ _prepareRoute error: $e");
+      if (!mounted) return;
+      setState(() => loading = false);
+    }
   }
 
   Future<LatLng> _snap(double lat, double lng) async {
@@ -118,13 +206,38 @@ class _RideMapPageState extends ConsumerState<RideMapPage> {
       loading = false;
     });
 
-    // ✅ fit to route initially
-    Future.delayed(const Duration(milliseconds: 200), () {
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      if (!mounted || !_mapReady) return;
       _fitRoute();
     });
   }
 
-  // ───────── CAMERA HELPERS ─────────
+  // ───────────────────────────
+  // CAMERA HELPERS
+  // ───────────────────────────
+  LatLngBounds _boundsWithDriver(LatLng? driver) {
+    final points = <LatLng>[];
+    if (routePoints.isNotEmpty) points.addAll(routePoints);
+    if (snappedStart != null) points.add(snappedStart!);
+    if (snappedEnd != null) points.add(snappedEnd!);
+    if (driver != null) points.add(driver);
+
+    if (points.isEmpty) {
+      return LatLngBounds(
+        LatLng(widget.fromLat, widget.fromLng),
+        LatLng(widget.toLat, widget.toLng),
+      );
+    }
+
+    final b = LatLngBounds.fromPoints(points);
+    final latPad = (b.north - b.south) * 0.25;
+    final lngPad = (b.east - b.west) * 0.25;
+
+    return LatLngBounds(
+      LatLng(b.south - latPad, b.west - lngPad),
+      LatLng(b.north + latPad, b.east + lngPad),
+    );
+  }
 
   LatLngBounds _boundsRouteOnly() {
     if (routePoints.isEmpty) {
@@ -133,47 +246,26 @@ class _RideMapPageState extends ConsumerState<RideMapPage> {
         LatLng(widget.toLat, widget.toLng),
       );
     }
-
-    final b = LatLngBounds.fromPoints(routePoints);
-    final latPad = (b.north - b.south) * 0.25;
-    final lngPad = (b.east - b.west) * 0.25;
-
-    return LatLngBounds(
-      LatLng(b.south - latPad, b.west - lngPad),
-      LatLng(b.north + latPad, b.east + lngPad),
-    );
-  }
-
-  LatLngBounds _boundsWithDriver(LatLng? driver) {
-    final points = <LatLng>[];
-
-    if (routePoints.isNotEmpty) points.addAll(routePoints);
-    points.add(snappedStart);
-    points.add(snappedEnd);
-    if (driver != null) points.add(driver);
-
-    final b = LatLngBounds.fromPoints(points);
-
-    final latPad = (b.north - b.south) * 0.25;
-    final lngPad = (b.east - b.west) * 0.25;
-
-    return LatLngBounds(
-      LatLng(b.south - latPad, b.west - lngPad),
-      LatLng(b.north + latPad, b.east + lngPad),
-    );
+    return LatLngBounds.fromPoints(routePoints);
   }
 
   void _fitRoute() {
-    final b = _boundsRouteOnly();
+    if (!_mapReady) return;
     _mapController.fitCamera(
-      CameraFit.bounds(bounds: b, padding: const EdgeInsets.all(48)),
+      CameraFit.bounds(
+        bounds: _boundsRouteOnly(),
+        padding: const EdgeInsets.all(48),
+      ),
     );
   }
 
   void _fitAll(LatLng? driver) {
-    final b = _boundsWithDriver(driver);
+    if (!_mapReady) return;
     _mapController.fitCamera(
-      CameraFit.bounds(bounds: b, padding: const EdgeInsets.all(48)),
+      CameraFit.bounds(
+        bounds: _boundsWithDriver(driver),
+        padding: const EdgeInsets.all(48),
+      ),
     );
   }
 
@@ -186,19 +278,21 @@ class _RideMapPageState extends ConsumerState<RideMapPage> {
         s == 'in_progress';
   }
 
-  // ───────── UI ─────────
-
+  // ───────────────────────────
+  // UI
+  // ───────────────────────────
   @override
   Widget build(BuildContext context) {
     final screenWidth = MediaQuery.of(context).size.width;
     final isTablet = screenWidth > 600;
 
     final rideWSState = ref.watch(rideWSControllerProvider(widget.rideId));
+
     final driverLatLng = rideWSState.driverLatLng;
-    final driverBearing = rideWSState.driverBearing;
+    final carPos = _animatedPos ?? driverLatLng;
 
     final rideActive = _isRideActive(rideWSState.status);
-    final liveOn = driverLatLng != null;
+    final liveOn = carPos != null;
 
     return Scaffold(
       backgroundColor: const Color(0xFFF5F7FF),
@@ -233,7 +327,7 @@ class _RideMapPageState extends ConsumerState<RideMapPage> {
                     ),
                   ),
 
-                  // STATUS + BUTTON BAR
+                  // STATUS BAR
                   Padding(
                     padding: const EdgeInsets.symmetric(horizontal: 16),
                     child: Container(
@@ -245,10 +339,7 @@ class _RideMapPageState extends ConsumerState<RideMapPage> {
                         color: Colors.white,
                         borderRadius: BorderRadius.circular(16),
                         boxShadow: const [
-                          BoxShadow(
-                            blurRadius: 10,
-                            color: Colors.black12,
-                          )
+                          BoxShadow(blurRadius: 10, color: Colors.black12),
                         ],
                       ),
                       child: Row(
@@ -258,37 +349,39 @@ class _RideMapPageState extends ConsumerState<RideMapPage> {
                             label: rideWSState.status.toUpperCase(),
                             color: rideActive ? Colors.green : Colors.orange,
                           ),
-                          const SizedBox(width: 10),
+                          const SizedBox(width: 6),
                           _statusPill(
                             icon: Icons.circle,
                             label: liveOn ? "LIVE" : "OFF",
                             color: liveOn ? Colors.green : Colors.red,
                           ),
                           const Spacer(),
-
-                          // ✅ Fit Route
                           _iconBtn(
                             tooltip: "Fit Route",
                             icon: Icons.alt_route,
                             onTap: _fitRoute,
                           ),
-
-                          // ✅ Fit All (Route + Driver)
                           _iconBtn(
                             tooltip: "Fit All",
                             icon: Icons.center_focus_strong,
-                            onTap: () => _fitAll(driverLatLng),
+                            onTap: () => _fitAll(carPos),
                           ),
-
-                          // ✅ Reconnect
                           _iconBtn(
-                            tooltip: "Reconnect",
-                            icon: Icons.refresh,
+                            tooltip: _followDriver
+                                ? "Disable Follow"
+                                : "Enable Follow",
+                            icon:
+                                _followDriver ? Icons.gps_off : Icons.gps_fixed,
                             onTap: () {
-                              ref
-                                  .read(rideWSControllerProvider(widget.rideId)
-                                      .notifier)
-                                  .connect();
+                              setState(() => _followDriver = !_followDriver);
+                              if (_followDriver &&
+                                  carPos != null &&
+                                  _mapReady) {
+                                _mapController.move(
+                                  carPos,
+                                  _mapController.camera.zoom,
+                                );
+                              }
                             },
                           ),
                         ],
@@ -321,8 +414,19 @@ class _RideMapPageState extends ConsumerState<RideMapPage> {
                         child: FlutterMap(
                           mapController: _mapController,
                           options: MapOptions(
+                            onMapReady: () {
+                              _mapReady = true;
+                              WidgetsBinding.instance.addPostFrameCallback((_) {
+                                if (!mounted) return;
+                                if (carPos != null) {
+                                  _fitAll(carPos);
+                                } else {
+                                  _fitRoute();
+                                }
+                              });
+                            },
                             initialCameraFit: CameraFit.bounds(
-                              bounds: _boundsWithDriver(driverLatLng),
+                              bounds: _boundsWithDriver(carPos),
                               padding: const EdgeInsets.all(40),
                             ),
                           ),
@@ -348,10 +452,13 @@ class _RideMapPageState extends ConsumerState<RideMapPage> {
                             ),
                             MarkerLayer(
                               markers: [
-                                _hopPin(snappedStart, Colors.green),
-                                _hopPin(snappedEnd, Colors.red),
-                                if (driverLatLng != null)
-                                  _driverMarker(driverLatLng, driverBearing),
+                                if (snappedStart != null)
+                                  _hopPin(snappedStart!, Colors.green),
+                                if (snappedEnd != null)
+                                  _hopPin(snappedEnd!, Colors.red),
+
+                                /// ✅ ONLY CAR MOVES (MAP DOESN'T MOVE)
+                                if (carPos != null) _carMarker(carPos),
                               ],
                             ),
                           ],
@@ -360,7 +467,7 @@ class _RideMapPageState extends ConsumerState<RideMapPage> {
                     ),
                   ),
 
-                  // LOCATION INFO
+                  // INFO
                   Expanded(
                     flex: 2,
                     child: Padding(
@@ -369,10 +476,16 @@ class _RideMapPageState extends ConsumerState<RideMapPage> {
                         mainAxisAlignment: MainAxisAlignment.center,
                         children: [
                           _infoRow(
-                              Icons.location_on, widget.fromName, Colors.green),
+                            Icons.location_on,
+                            widget.fromName,
+                            Colors.green,
+                          ),
                           const SizedBox(height: 12),
                           _infoRow(
-                              Icons.location_on, widget.toName, Colors.red),
+                            Icons.location_on,
+                            widget.toName,
+                            Colors.red,
+                          ),
                           const SizedBox(height: 10),
                           if (rideWSState.lastError != null)
                             Text(
@@ -394,7 +507,7 @@ class _RideMapPageState extends ConsumerState<RideMapPage> {
     );
   }
 
-  // ───────── UI COMPONENTS ─────────
+  // ───────── UI Components ─────────
 
   Widget _statusPill({
     required IconData icon,
@@ -463,26 +576,26 @@ class _RideMapPageState extends ConsumerState<RideMapPage> {
     );
   }
 
-  Marker _driverMarker(LatLng point, double bearing) {
+  /// ✅ Uber-like small car
+  Marker _carMarker(LatLng point) {
     return Marker(
       point: point,
-      width: 60,
-      height: 60,
+      width: 28,
+      height: 28,
       alignment: Alignment.center,
-      child: Transform.rotate(
-        angle: (bearing * 3.1415926535) / 180.0,
-        child: Container(
-          decoration: BoxDecoration(
-            shape: BoxShape.circle,
-            color: Colors.white,
-            boxShadow: const [BoxShadow(blurRadius: 10, color: Colors.black26)],
-          ),
-          padding: const EdgeInsets.all(10),
-          child: const Icon(
-            Icons.directions_car,
-            size: 30,
-            color: Colors.black,
-          ),
+      child: Container(
+        decoration: const BoxDecoration(
+          shape: BoxShape.circle,
+          color: Colors.white,
+          boxShadow: [
+            BoxShadow(blurRadius: 5, color: Colors.black26),
+          ],
+        ),
+        padding: const EdgeInsets.all(4),
+        child: const Icon(
+          Icons.directions_car,
+          size: 14,
+          color: Colors.black,
         ),
       ),
     );

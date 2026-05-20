@@ -1,0 +1,96 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<gpx version="1.1" creator="HopEir GPX Generator"
+     xmlns="http://www.topografix.com/GPX/1/1">
+
+  <metadata>
+    <name>Vantage Apartments → CRH Group - Rathfarnham (D16)</name>
+  </metadata>
+
+  <trk>
+    <name>HopEir Driver Track</name>
+    <trkseg>
+
+      <trkpt lat="53.2709541957" lon="-6.2033409700">
+        <ele>10</ele>
+        <time>2026-01-18T00:00:00Z</time>
+      </trkpt>
+
+      <trkpt lat="53.2712000000" lon="-6.2075000000">
+        <ele>11</ele>
+        <time>2026-01-18T00:00:05Z</time>
+      </trkpt>
+
+      <trkpt lat="53.2715500000" lon="-6.2120000000">
+        <ele>11</ele>
+        <time>2026-01-18T00:00:10Z</time>
+      </trkpt>
+
+      <trkpt lat="53.2719500000" lon="-6.2170000000">
+        <ele>12</ele>
+        <time>2026-01-18T00:00:15Z</time>
+      </trkpt>
+
+      <trkpt lat="53.2723500000" lon="-6.2220000000">
+        <ele>12</ele>
+        <time>2026-01-18T00:00:20Z</time>
+      </trkpt>
+
+      <trkpt lat="53.2727500000" lon="-6.2270000000">
+        <ele>13</ele>
+        <time>2026-01-18T00:00:25Z</time>
+      </trkpt>
+
+      <trkpt lat="53.2731000000" lon="-6.2320000000">
+        <ele>13</ele>
+        <time>2026-01-18T00:00:30Z</time>
+      </trkpt>
+
+      <trkpt lat="53.2734500000" lon="-6.2370000000">
+        <ele>14</ele>
+        <time>2026-01-18T00:00:35Z</time>
+      </trkpt>
+
+      <trkpt lat="53.2738500000" lon="-6.2420000000">
+        <ele>14</ele>
+        <time>2026-01-18T00:00:40Z</time>
+      </trkpt>
+
+      <trkpt lat="53.2742500000" lon="-6.2470000000">
+        <ele>15</ele>
+        <time>2026-01-18T00:00:45Z</time>
+      </trkpt>
+
+      <trkpt lat="53.2746500000" lon="-6.2520000000">
+        <ele>15</ele>
+        <time>2026-01-18T00:00:50Z</time>
+      </trkpt>
+
+      <trkpt lat="53.2750500000" lon="-6.2560000000">
+        <ele>16</ele>
+        <time>2026-01-18T00:00:55Z</time>
+      </trkpt>
+
+      <trkpt lat="53.2755000000" lon="-6.2590000000">
+        <ele>16</ele>
+        <time>2026-01-18T00:01:00Z</time>
+      </trkpt>
+
+      <trkpt lat="53.2761000000" lon="-6.2615000000">
+        <ele>17</ele>
+        <time>2026-01-18T00:01:05Z</time>
+      </trkpt>
+
+      <trkpt lat="53.2768000000" lon="-6.2628000000">
+        <ele>17</ele>
+        <time>2026-01-18T00:01:10Z</time>
+      </trkpt>
+
+      <trkpt lat="53.2779513736" lon="-6.2637857068">
+        <ele>18</ele>
+        <time>2026-01-18T00:01:15Z</time>
+      </trkpt>
+
+    </trkseg>
+  </trk>
+
+</gpx>

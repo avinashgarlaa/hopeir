@@ -35,19 +35,18 @@ class RideWSState {
   final String? myUserId;
   final bool historyLoaded;
 
-  // ✅ IMPORTANT: role from websocket connection payload
-  // backend sends: "driver" / "passenger"
+  /// backend sends: "driver" / "passenger"
   final String? role;
 
-  // ✅ LIVE DRIVER LOCATION
+  /// LIVE DRIVER LOCATION
   final LatLng? driverLatLng;
   final double driverBearing;
 
-  // ✅ connection info
+  /// connection info
   final bool connected;
   final String? lastError;
 
-  // ✅ driver tracking (sending GPS)
+  /// driver tracking (sending GPS)
   final bool driverTrackingEnabled;
 
   RideWSState({
@@ -105,10 +104,14 @@ class RideWSController extends StateNotifier<RideWSState> {
   bool _manualDisconnect = false;
   Timer? _reconnectTimer;
 
-  // ✅ Driver GPS stream
+  /// Driver GPS stream
   StreamSubscription<Position>? _positionSub;
   Position? _lastSentPos;
   DateTime _lastSentAt = DateTime.fromMillisecondsSinceEpoch(0);
+
+  /// ✅ Location stream retry (for iOS sim kCLErrorDomain error 0)
+  Timer? _locationRetryTimer;
+  bool _startingLocationStream = false;
 
   RideWSController(this.ref, this.rideId)
       : super(
@@ -125,14 +128,25 @@ class RideWSController extends StateNotifier<RideWSState> {
 
   // ───────────────── HELPERS ─────────────────
 
-  // ✅ FIXED: driver is decided ONLY by backend role
   bool _isDriver() => state.role == "driver";
 
-  /// ✅ SAFE double parse (num or string)
+  bool _isRideActiveForTracking(String status) {
+    final s = status.toLowerCase();
+    return s == 'ongoing' || s == 'started' || s == 'in_progress';
+  }
+
+  /// SAFE double parse (num or string)
   double _toDouble(dynamic v) {
     if (v == null) return 0;
     if (v is num) return v.toDouble();
     return double.tryParse(v.toString()) ?? 0;
+  }
+
+  /// ✅ bearing guard (simulator may give NaN / Infinity)
+  double _sanitizeBearing(dynamic bearing) {
+    final b = _toDouble(bearing);
+    if (b.isNaN || b.isInfinite) return 0.0;
+    return b;
   }
 
   // ───────────────── CONNECT / DISCONNECT ─────────────────
@@ -165,16 +179,14 @@ class RideWSController extends StateNotifier<RideWSState> {
     final userId = state.myUserId;
     if (userId == null) return;
 
-    // prevent double connect
     if (_channel != null) return;
 
-    // ✅ YOUR ORIGINAL ROUTE (CORRECT)
     final uri = Uri.parse(
       'wss://hopeir.onrender.com/ws/ride/$rideId/?user_id=$userId',
     );
 
     try {
-      debugPrint("🔌 Connecting WS: $uri");
+      debugPrint("🔌 Connecting WS ride#$rideId => $uri");
 
       _channel = WebSocketChannel.connect(uri);
 
@@ -195,7 +207,7 @@ class RideWSController extends StateNotifier<RideWSState> {
   }
 
   void _handleClosed() {
-    debugPrint("🔌 WS closed");
+    debugPrint("🔌 WS closed ride#$rideId");
     _channel = null;
     _sub = null;
 
@@ -207,7 +219,7 @@ class RideWSController extends StateNotifier<RideWSState> {
 
   void _handleError(Object err) {
     final errStr = err.toString();
-    debugPrint("❌ WS error: $errStr");
+    debugPrint("❌ WS error ride#$rideId => $errStr");
 
     _channel = null;
     _sub = null;
@@ -236,21 +248,23 @@ class RideWSController extends StateNotifier<RideWSState> {
 
   // ───────────────── DRIVER LIVE LOCATION (SEND) ─────────────────
 
-  bool _isRideActiveForTracking(String status) {
-    final s = status.toLowerCase();
-    return s == 'ongoing' || s == 'started' || s == 'in_progress';
-  }
-
   Future<void> startDriverLiveTracking() async {
-    // ✅ HARD BLOCK: passenger can never start tracking
+    debugPrint("🧭 startDriverLiveTracking ride#$rideId");
+
     if (!_isDriver()) {
-      debugPrint("🛑 Passenger blocked from starting driver tracking");
+      debugPrint(
+          "🛑 Passenger blocked from starting driver tracking ride#$rideId");
       return;
     }
 
-    if (state.driverTrackingEnabled) return;
+    if (state.driverTrackingEnabled) {
+      debugPrint("✅ Tracking already ON ride#$rideId");
+      return;
+    }
 
     if (!_isRideActiveForTracking(state.status)) {
+      debugPrint(
+          "🛑 Ride not active for tracking ride#$rideId (status=${state.status})");
       state = state.copyWith(
         lastError:
             "Tracking not started: ride not active (status=${state.status}).",
@@ -274,54 +288,115 @@ class RideWSController extends StateNotifier<RideWSState> {
 
     if (!isConnected) connect();
 
-    const settings = LocationSettings(
-      accuracy: LocationAccuracy.bestForNavigation,
-      distanceFilter: 8,
-    );
-
-    await _positionSub?.cancel();
-    _positionSub =
-        Geolocator.getPositionStream(locationSettings: settings).listen((pos) {
-      final now = DateTime.now();
-      if (now.difference(_lastSentAt).inSeconds < 2) return;
-
-      if (_lastSentPos != null) {
-        final moved = Geolocator.distanceBetween(
-          _lastSentPos!.latitude,
-          _lastSentPos!.longitude,
-          pos.latitude,
-          pos.longitude,
-        );
-        if (moved < 8) return;
-      }
-
-      _lastSentAt = now;
-      _lastSentPos = pos;
-
-      debugPrint("🚗 sending driver loc: ${pos.latitude}, ${pos.longitude}");
-
-      sendDriverLocation(
-        lat: pos.latitude,
-        lng: pos.longitude,
-        bearing: pos.heading,
-      );
-    });
-
     state = state.copyWith(driverTrackingEnabled: true, clearError: true);
+
+    /// ✅ start (or restart) safe tracking stream
+    await _startOrRestartLocationStream();
+  }
+
+  Future<void> _startOrRestartLocationStream() async {
+    if (_startingLocationStream) return;
+    _startingLocationStream = true;
+
+    _locationRetryTimer?.cancel();
+    _locationRetryTimer = null;
+
+    try {
+      /// ✅ BEST for emulator + simulator
+      /// distanceFilter 0 => always update
+      const settings = LocationSettings(
+        accuracy: LocationAccuracy.best,
+        distanceFilter: 0,
+      );
+
+      await _positionSub?.cancel();
+      _positionSub = null;
+
+      debugPrint("📍 Starting location stream ride#$rideId...");
+
+      _positionSub =
+          Geolocator.getPositionStream(locationSettings: settings).listen(
+        (pos) {
+          final now = DateTime.now();
+
+          /// ✅ send more frequently for smoother marker
+          if (now.difference(_lastSentAt).inMilliseconds < 250) return;
+
+          /// ✅ allow very tiny movement (emulator sometimes moves small)
+          if (_lastSentPos != null) {
+            final moved = Geolocator.distanceBetween(
+              _lastSentPos!.latitude,
+              _lastSentPos!.longitude,
+              pos.latitude,
+              pos.longitude,
+            );
+
+            if (moved < 0.1) return; // ✅ was 0.5m earlier
+          }
+
+          _lastSentAt = now;
+          _lastSentPos = pos;
+
+          final bearing = _sanitizeBearing(pos.heading);
+
+          debugPrint(
+              "🚗 ride#$rideId sending driver loc: ${pos.latitude}, ${pos.longitude}");
+
+          sendDriverLocation(
+            lat: pos.latitude,
+            lng: pos.longitude,
+            bearing: bearing,
+          );
+        },
+
+        /// ✅ KEY FIX: handle CoreLocation failures
+        onError: (e) {
+          debugPrint("📍 Location stream error ride#$rideId => $e");
+          _scheduleLocationStreamRetry();
+        },
+
+        cancelOnError: false,
+      );
+    } catch (e) {
+      debugPrint("❌ Failed to start location stream ride#$rideId => $e");
+      _scheduleLocationStreamRetry();
+    } finally {
+      _startingLocationStream = false;
+    }
+  }
+
+  void _scheduleLocationStreamRetry() {
+    if (!state.driverTrackingEnabled) return;
+    if (_locationRetryTimer != null) return;
+
+    _locationRetryTimer = Timer(const Duration(seconds: 2), () async {
+      _locationRetryTimer = null;
+
+      if (!state.driverTrackingEnabled) return;
+
+      debugPrint("🔁 Restarting location stream ride#$rideId ...");
+      await _startOrRestartLocationStream();
+    });
   }
 
   Future<void> stopDriverLiveTracking() async {
+    _locationRetryTimer?.cancel();
+    _locationRetryTimer = null;
+
     await _positionSub?.cancel();
     _positionSub = null;
+
     _lastSentPos = null;
+
     state = state.copyWith(driverTrackingEnabled: false);
+    debugPrint("🛑 Tracking stopped ride#$rideId");
   }
 
   // ───────────────── RECEIVE ─────────────────
 
   void _onMessage(dynamic raw) {
     try {
-      debugPrint("📩 WS RAW => $raw");
+      debugPrint("📩 WS RAW ride#$rideId => $raw");
       final data = jsonDecode(raw);
 
       switch (data['type']) {
@@ -344,7 +419,7 @@ class RideWSController extends StateNotifier<RideWSState> {
           break;
       }
     } catch (e) {
-      debugPrint("❌ WS parse error: $e");
+      debugPrint("❌ WS parse error ride#$rideId => $e");
     }
   }
 
@@ -353,9 +428,9 @@ class RideWSController extends StateNotifier<RideWSState> {
     if (statusRaw == null) return;
 
     final status = statusRaw.toString();
-    final role = data['role']?.toString(); // ✅ driver/passenger
+    final role = data['role']?.toString();
 
-    debugPrint("✅ connection: role=$role status=$status");
+    debugPrint("✅ connection ride#$rideId: role=$role status=$status");
 
     state = state.copyWith(
       status: status,
@@ -368,8 +443,8 @@ class RideWSController extends StateNotifier<RideWSState> {
     final shouldTrackNow =
         lower == "ongoing" || lower == "started" || lower == "in_progress";
 
-    // ✅ start tracking only if DRIVER
-    if (shouldTrackNow && !state.driverTrackingEnabled && _isDriver()) {
+    if (shouldTrackNow && _isDriver()) {
+      /// ✅ always attempt start (safe due to guards)
       await startDriverLiveTracking();
     }
   }
@@ -393,15 +468,15 @@ class RideWSController extends StateNotifier<RideWSState> {
     if (statusRaw == null) return;
 
     final status = statusRaw.toString();
+    final lower = status.toLowerCase();
 
-    if (!{'completed', 'cancelled'}.contains(status.toLowerCase())) {
+    if (!{'completed', 'cancelled'}.contains(lower)) {
       LocalNotificationHelper.showNotification(
         '🚘 Ride Update',
         'Ride is now ${status.toUpperCase()}',
       );
     }
 
-    final lower = status.toLowerCase();
     final shouldClearDriver = lower == 'completed' || lower == 'cancelled';
 
     state = state.copyWith(
@@ -418,17 +493,11 @@ class RideWSController extends StateNotifier<RideWSState> {
     final shouldTrackNow =
         lower == 'ongoing' || lower == 'started' || lower == 'in_progress';
 
-    // ✅ FIX: start tracking only if DRIVER
-    if (shouldTrackNow && !state.driverTrackingEnabled && _isDriver()) {
-      if (!isConnected) connect();
+    if (shouldTrackNow && _isDriver()) {
       await startDriverLiveTracking();
-    }
-
-    final shouldStopTracking =
-        !(lower == 'ongoing' || lower == 'started' || lower == 'in_progress');
-
-    if (shouldStopTracking && state.driverTrackingEnabled) {
-      await stopDriverLiveTracking();
+    } else {
+      // not trackable anymore
+      if (state.driverTrackingEnabled) await stopDriverLiveTracking();
     }
   }
 
@@ -463,9 +532,9 @@ class RideWSController extends StateNotifier<RideWSState> {
 
     final lat = _toDouble(latRaw);
     final lng = _toDouble(lngRaw);
-    final bearing = _toDouble(data['bearing']);
+    final bearing = _sanitizeBearing(data['bearing']);
 
-    debugPrint("📍 DRIVER LOCATION RECEIVED: $lat, $lng");
+    debugPrint("📍 DRIVER LOCATION RECEIVED ride#$rideId: $lat, $lng");
 
     state = state.copyWith(
       driverLatLng: LatLng(lat, lng),
@@ -496,14 +565,11 @@ class RideWSController extends StateNotifier<RideWSState> {
     _channel!.sink.add(jsonEncode({'action': normalized}));
   }
 
-  /// ✅ BACKEND expects location_update + latitude/longitude
-  /// ✅ passenger blocked here too
   void sendDriverLocation({
     required double lat,
     required double lng,
     double bearing = 0,
   }) {
-    // ✅ HARD BLOCK passenger sending location
     if (!_isDriver()) return;
 
     if (!isConnected) connect();

@@ -1,0 +1,78 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<gpx version="1.1" creator="HopEir GPX Generator"
+     xmlns="http://www.topografix.com/GPX/1/1">
+
+  <metadata>
+    <name>Vantage Apartments → CRH Group - Rathfarnham (D16)</name>
+  </metadata>
+
+  <trk>
+    <name>HopEir Driver Track</name>
+    <trkseg>
+
+      <!-- Start: Vantage Apartments -->
+      <trkpt lat="53.2709541957" lon="-6.2033409700"><ele>10</ele><time>2026-01-18T00:00:00Z</time></trkpt>
+
+      <trkpt lat="53.271050" lon="-6.205000"><ele>10</ele><time>2026-01-18T00:00:02Z</time></trkpt>
+      <trkpt lat="53.271120" lon="-6.206300"><ele>11</ele><time>2026-01-18T00:00:04Z</time></trkpt>
+      <trkpt lat="53.271200" lon="-6.207500"><ele>11</ele><time>2026-01-18T00:00:06Z</time></trkpt>
+
+      <trkpt lat="53.271280" lon="-6.209000"><ele>11</ele><time>2026-01-18T00:00:08Z</time></trkpt>
+      <trkpt lat="53.271380" lon="-6.210500"><ele>11</ele><time>2026-01-18T00:00:10Z</time></trkpt>
+      <trkpt lat="53.271550" lon="-6.212000"><ele>11</ele><time>2026-01-18T00:00:12Z</time></trkpt>
+
+      <trkpt lat="53.271650" lon="-6.213700"><ele>12</ele><time>2026-01-18T00:00:14Z</time></trkpt>
+      <trkpt lat="53.271800" lon="-6.215400"><ele>12</ele><time>2026-01-18T00:00:16Z</time></trkpt>
+      <trkpt lat="53.271950" lon="-6.217000"><ele>12</ele><time>2026-01-18T00:00:18Z</time></trkpt>
+
+      <trkpt lat="53.272050" lon="-6.218700"><ele>12</ele><time>2026-01-18T00:00:20Z</time></trkpt>
+      <trkpt lat="53.272180" lon="-6.220300"><ele>12</ele><time>2026-01-18T00:00:22Z</time></trkpt>
+      <trkpt lat="53.272350" lon="-6.222000"><ele>12</ele><time>2026-01-18T00:00:24Z</time></trkpt>
+
+      <trkpt lat="53.272450" lon="-6.223700"><ele>13</ele><time>2026-01-18T00:00:26Z</time></trkpt>
+      <trkpt lat="53.272600" lon="-6.225300"><ele>13</ele><time>2026-01-18T00:00:28Z</time></trkpt>
+      <trkpt lat="53.272750" lon="-6.227000"><ele>13</ele><time>2026-01-18T00:00:30Z</time></trkpt>
+
+      <trkpt lat="53.272880" lon="-6.228800"><ele>13</ele><time>2026-01-18T00:00:32Z</time></trkpt>
+      <trkpt lat="53.273000" lon="-6.230400"><ele>13</ele><time>2026-01-18T00:00:34Z</time></trkpt>
+      <trkpt lat="53.273100" lon="-6.232000"><ele>13</ele><time>2026-01-18T00:00:36Z</time></trkpt>
+
+      <trkpt lat="53.273220" lon="-6.233600"><ele>14</ele><time>2026-01-18T00:00:38Z</time></trkpt>
+      <trkpt lat="53.273330" lon="-6.235200"><ele>14</ele><time>2026-01-18T00:00:40Z</time></trkpt>
+      <trkpt lat="53.273450" lon="-6.237000"><ele>14</ele><time>2026-01-18T00:00:42Z</time></trkpt>
+
+      <trkpt lat="53.273600" lon="-6.238800"><ele>14</ele><time>2026-01-18T00:00:44Z</time></trkpt>
+      <trkpt lat="53.273720" lon="-6.240500"><ele>14</ele><time>2026-01-18T00:00:46Z</time></trkpt>
+      <trkpt lat="53.273850" lon="-6.242000"><ele>14</ele><time>2026-01-18T00:00:48Z</time></trkpt>
+
+      <trkpt lat="53.273950" lon="-6.243800"><ele>15</ele><time>2026-01-18T00:00:50Z</time></trkpt>
+      <trkpt lat="53.274100" lon="-6.245500"><ele>15</ele><time>2026-01-18T00:00:52Z</time></trkpt>
+      <trkpt lat="53.274250" lon="-6.247000"><ele>15</ele><time>2026-01-18T00:00:54Z</time></trkpt>
+
+      <trkpt lat="53.274380" lon="-6.248800"><ele>15</ele><time>2026-01-18T00:00:56Z</time></trkpt>
+      <trkpt lat="53.274520" lon="-6.250500"><ele>15</ele><time>2026-01-18T00:00:58Z</time></trkpt>
+      <trkpt lat="53.274650" lon="-6.252000"><ele>15</ele><time>2026-01-18T00:01:00Z</time></trkpt>
+
+      <trkpt lat="53.274780" lon="-6.253500"><ele>16</ele><time>2026-01-18T00:01:02Z</time></trkpt>
+      <trkpt lat="53.274920" lon="-6.254900"><ele>16</ele><time>2026-01-18T00:01:04Z</time></trkpt>
+      <trkpt lat="53.275050" lon="-6.256000"><ele>16</ele><time>2026-01-18T00:01:06Z</time></trkpt>
+
+      <trkpt lat="53.275200" lon="-6.257100"><ele>16</ele><time>2026-01-18T00:01:08Z</time></trkpt>
+      <trkpt lat="53.275350" lon="-6.258200"><ele>16</ele><time>2026-01-18T00:01:10Z</time></trkpt>
+      <trkpt lat="53.275500" lon="-6.259000"><ele>16</ele><time>2026-01-18T00:01:12Z</time></trkpt>
+
+      <trkpt lat="53.275700" lon="-6.260000"><ele>17</ele><time>2026-01-18T00:01:14Z</time></trkpt>
+      <trkpt lat="53.275900" lon="-6.261000"><ele>17</ele><time>2026-01-18T00:01:16Z</time></trkpt>
+      <trkpt lat="53.276100" lon="-6.261500"><ele>17</ele><time>2026-01-18T00:01:18Z</time></trkpt>
+
+      <trkpt lat="53.276300" lon="-6.262000"><ele>17</ele><time>2026-01-18T00:01:20Z</time></trkpt>
+      <trkpt lat="53.276550" lon="-6.262400"><ele>17</ele><time>2026-01-18T00:01:22Z</time></trkpt>
+      <trkpt lat="53.276800" lon="-6.262800"><ele>17</ele><time>2026-01-18T00:01:24Z</time></trkpt>
+
+      <!-- End: CRH Group -->
+      <trkpt lat="53.2779513736" lon="-6.2637857068"><ele>18</ele><time>2026-01-18T00:01:26Z</time></trkpt>
+
+    </trkseg>
+  </trk>
+
+</gpx>

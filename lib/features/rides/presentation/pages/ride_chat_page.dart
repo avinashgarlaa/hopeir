@@ -109,7 +109,7 @@ class _RideChatPageState extends ConsumerState<RideChatPage> {
                   child: Row(
                     children: [
                       Text(
-                        "Your Rides",
+                        "Ride Chat",
                         style: GoogleFonts.luckiestGuy(
                           fontWeight: FontWeight.w300,
                           fontSize: isTablet ? 32 : 28,

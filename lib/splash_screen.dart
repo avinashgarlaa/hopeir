@@ -81,6 +81,11 @@ class _SplashScreenState extends ConsumerState<SplashScreen>
       await _textController.forward();
       await Future.delayed(const Duration(seconds: 1));
 
+      if (!mounted) return;
+
+      // ✅ get container ONCE (important)
+      final container = ProviderScope.containerOf(context, listen: false);
+
       final prefs = await SharedPreferences.getInstance();
       final email = prefs.getString('user_email');
       final password = prefs.getString('user_password');
@@ -88,218 +93,180 @@ class _SplashScreenState extends ConsumerState<SplashScreen>
       debugPrint("📧 Cached email: $email");
       debugPrint("🔑 Cached password exists: ${password != null}");
 
-      if (email != null && password != null) {
-        final container = ProviderScope.containerOf(context, listen: false);
-
-        unawaited(() async {
-          final authNotifier = container.read(authNotifierProvider.notifier);
-          await authNotifier.checkLoginStatus(email, password, context);
-
-          final user = container.read(authNotifierProvider).user;
-
-          if (user != null && user.userId != "") {
-            debugPrint("✅ Logged in as user ID: ${user.userId}");
-
-            bool isActiveRideStatus(String status) {
-              final s = status.toLowerCase();
-              return s == "ongoing" || s == "started" || s == "in_progress";
-            }
-
-            // ✅ Fetch vehicle
-            try {
-              await container
-                  .read(vehicleControllerProvider.notifier)
-                  .fetchVehicleByUserId(user.userId);
-            } catch (e) {
-              debugPrint("⚠️ Vehicle fetch failed: $e");
-            }
-
-            // =========================================================
-            // ✅ Ride Requests WS (global request listener)
-            // =========================================================
-            final requestWSProvider =
-                rideRequestWSControllerProvider(user.userId);
-
-            bool initialSyncDone = false;
-            List<RideRequest> previousRequests = [];
-
-            final Set<int> passengerWSConnectedRideIds = {};
-
-            Future<void> triggerPassengerRideWS(int rideId) async {
-              if (passengerWSConnectedRideIds.contains(rideId)) return;
-
-              if (isRideFinalCached(rideId)) {
-                debugPrint("🔒 Passenger ride #$rideId already final (cached)");
-                passengerWSConnectedRideIds.add(rideId);
-                return;
-              }
-
-              passengerWSConnectedRideIds.add(rideId);
-
-              try {
-                container.read(passengerRideWSProvider(rideId).notifier);
-                debugPrint(
-                    "🚀 Triggered PassengerRideWSController for ride: $rideId");
-
-                // ✅ Passenger needs RideAction WS too (to receive driver_location)
-                container
-                    .read(rideWSControllerProvider(rideId).notifier)
-                    .connect();
-              } catch (e) {
-                debugPrint("❌ Error triggering passenger ride #$rideId: $e");
-              }
-            }
-
-            container.listen<RideRequestWSState>(
-              requestWSProvider,
-              (prev, next) async {
-                final currentRequests = next.incomingRequests;
-
-                if (!initialSyncDone) {
-                  initialSyncDone = true;
-                  previousRequests = List.from(currentRequests);
-                  debugPrint(
-                      "🛑 Skipping notifications for first-time initial_state sync");
-                  return;
-                }
-
-                final oldMap = {for (var r in previousRequests) r.id: r};
-
-                for (final r in currentRequests) {
-                  final old = oldMap[r.id];
-                  if (old == null) continue;
-
-                  final oldStatus = old.status.toLowerCase();
-                  final newStatus = r.status.toLowerCase();
-
-                  if (oldStatus != newStatus) {
-                    final isDriver = r.passengerId != user.userId;
-
-                    LocalNotificationHelper.showNotification(
-                      isDriver
-                          ? '🔁 Ride Request Updated'
-                          : '📢 Request Status Updated',
-                      '${isDriver ? "Request from ${r.passengerName}" : "Your request"} is now ${r.status.toUpperCase()}',
-                    );
-
-                    // ✅ accepted => start passenger WS
-                    if (!isDriver && newStatus == "accepted") {
-                      LocalNotificationHelper.showNotification(
-                        '✅ Ride Accepted',
-                        'Driver accepted your request. Ride tracking started.',
-                      );
-                      await triggerPassengerRideWS(r.rideId);
-                    }
-                  }
-                }
-
-                previousRequests = List.from(currentRequests);
-              },
-              fireImmediately: false,
-            );
-
-            // =========================================================
-            // ✅ DRIVER: connect WS for created rides
-            // =========================================================
-            final rideController =
-                container.read(rideControllerProvider.notifier);
-
-            final createdRides = await rideController.fetchCreatedRides(
-              currentUserId: user.userId,
-            );
-
-            final createdRideIds = createdRides.map((r) => r.id).toSet();
-
-            // ✅ store active rides which need tracking ON
-            final List<int> activeCreatedRideIds = [];
-
-            for (final rideId in createdRideIds) {
-              try {
-                final ride =
-                    await container.read(getRideByIdUsecaseProvider)(rideId);
-                final status = ride.status.toLowerCase();
-
-                final ws =
-                    container.read(rideWSControllerProvider(rideId).notifier);
-
-                if (status == 'completed' || status == 'cancelled') {
-                  debugPrint(
-                      "🛑 Skipping DRIVER WS for ride #$rideId ($status)");
-                  continue;
-                }
-
-                ws.connect();
-                debugPrint("🚀 Connected DRIVER WS for created ride: $rideId");
-
-                if (isActiveRideStatus(status)) {
-                  activeCreatedRideIds.add(rideId);
-                }
-              } catch (e) {
-                debugPrint("❌ Error fetching ride #$rideId for driver: $e");
-              }
-            }
-
-            // =========================================================
-            // ✅ PASSENGER: connect WS for already accepted rides
-            // =========================================================
-            await Future.delayed(const Duration(seconds: 2));
-
-            final requests = container.read(requestWSProvider).incomingRequests;
-
-            final joinedRideIds = requests
-                .where((r) => r.passengerId == user.userId)
-                .where((r) => r.status.toLowerCase() == "accepted")
-                .map((r) => r.rideId)
-                .whereType<int>()
-                .toSet()
-                .difference(createdRideIds);
-
-            for (final rideId in joinedRideIds) {
-              await triggerPassengerRideWS(rideId);
-            }
-
-            if (!mounted) return;
-
-            // ✅ Navigate to main screen first (important)
-            Navigator.pushReplacement(
-              context,
-              MaterialPageRoute(builder: (_) => const MainScreen()),
-            );
-
-            // ✅ AFTER navigation → safely start tracking
-            Future.delayed(const Duration(seconds: 2), () async {
-              for (final rideId in activeCreatedRideIds) {
-                try {
-                  final ws =
-                      container.read(rideWSControllerProvider(rideId).notifier);
-
-                  // ✅ start sending driver GPS after app is fully ready
-                  await ws.startDriverLiveTracking();
-                  debugPrint("📍 Tracking ON for ride #$rideId");
-                } catch (e) {
-                  debugPrint("❌ Failed to start tracking rideId=$rideId : $e");
-                }
-              }
-            });
-
-            return;
-          }
-
-          if (!mounted) return;
-          Navigator.pushReplacement(
-            context,
-            MaterialPageRoute(builder: (_) => const LoginScreen()),
-          );
-        }());
-
+      if (email == null || password == null) {
+        if (!mounted) return;
+        Navigator.pushReplacement(
+          context,
+          MaterialPageRoute(builder: (_) => const LoginScreen()),
+        );
         return;
       }
 
+      // ✅ no unawaited here: keep flow controlled
+      final authNotifier = container.read(authNotifierProvider.notifier);
+      await authNotifier.checkLoginStatus(email, password, context);
+
+      final user = container.read(authNotifierProvider).user;
+
+      if (user == null || user.userId.isEmpty) {
+        if (!mounted) return;
+        Navigator.pushReplacement(
+          context,
+          MaterialPageRoute(builder: (_) => const LoginScreen()),
+        );
+        return;
+      }
+
+      debugPrint("✅ Logged in as user ID: ${user.userId}");
+
+      // ✅ Fetch vehicle (safe)
+      try {
+        await container
+            .read(vehicleControllerProvider.notifier)
+            .fetchVehicleByUserId(user.userId);
+      } catch (e) {
+        debugPrint("⚠️ Vehicle fetch failed: $e");
+      }
+
+      // =========================================================
+      // ✅ Ride Requests WS (global request listener)
+      // =========================================================
+      final requestWSProvider = rideRequestWSControllerProvider(user.userId);
+
+      bool initialSyncDone = false;
+      List<RideRequest> previousRequests = [];
+      final Set<int> passengerWSConnectedRideIds = {};
+
+      Future<void> triggerPassengerRideWS(int rideId) async {
+        if (passengerWSConnectedRideIds.contains(rideId)) return;
+
+        if (isRideFinalCached(rideId)) {
+          debugPrint("🔒 Passenger ride #$rideId already final (cached)");
+          passengerWSConnectedRideIds.add(rideId);
+          return;
+        }
+
+        passengerWSConnectedRideIds.add(rideId);
+
+        try {
+          container.read(passengerRideWSProvider(rideId).notifier);
+          debugPrint(
+              "🚀 Triggered PassengerRideWSController for ride: $rideId");
+
+          // ✅ Passenger also needs ride WS for driver_location
+          container.read(rideWSControllerProvider(rideId).notifier).connect();
+        } catch (e) {
+          debugPrint("❌ Error triggering passenger ride #$rideId: $e");
+        }
+      }
+
+      // ✅ listen to requests updates
+      container.listen<RideRequestWSState>(
+        requestWSProvider,
+        (prev, next) async {
+          final currentRequests = next.incomingRequests;
+
+          if (!initialSyncDone) {
+            initialSyncDone = true;
+            previousRequests = List.from(currentRequests);
+            debugPrint("🛑 Skip notifications for initial_state sync");
+            return;
+          }
+
+          final oldMap = {for (var r in previousRequests) r.id: r};
+
+          for (final r in currentRequests) {
+            final old = oldMap[r.id];
+            if (old == null) continue;
+
+            final oldStatus = old.status.toLowerCase();
+            final newStatus = r.status.toLowerCase();
+
+            if (oldStatus != newStatus) {
+              final isDriver = r.passengerId != user.userId;
+
+              LocalNotificationHelper.showNotification(
+                isDriver
+                    ? '🔁 Ride Request Updated'
+                    : '📢 Request Status Updated',
+                '${isDriver ? "Request from ${r.passengerName}" : "Your request"} is now ${r.status.toUpperCase()}',
+              );
+
+              // passenger accepted -> connect
+              if (!isDriver && newStatus == "accepted") {
+                LocalNotificationHelper.showNotification(
+                  '✅ Ride Accepted',
+                  'Driver accepted your request. Ride tracking started.',
+                );
+                await triggerPassengerRideWS(r.rideId);
+              }
+            }
+          }
+
+          previousRequests = List.from(currentRequests);
+        },
+        fireImmediately: false,
+      );
+
+      // =========================================================
+      // ✅ DRIVER: connect WS for created rides
+      // =========================================================
+      final rideController = container.read(rideControllerProvider.notifier);
+
+      final createdRides = await rideController.fetchCreatedRides(
+        currentUserId: user.userId,
+      );
+
+      final createdRideIds = createdRides.map((r) => r.id).toSet();
+
+      for (final rideId in createdRideIds) {
+        try {
+          final ride = await container.read(getRideByIdUsecaseProvider)(rideId);
+          final status = ride.status.toLowerCase();
+
+          if (status == 'completed' || status == 'cancelled') {
+            debugPrint("🛑 Skipping DRIVER WS for ride #$rideId ($status)");
+            continue;
+          }
+
+          // ✅ just connect, controller auto-starts tracking when status ongoing
+          final ws = container.read(rideWSControllerProvider(rideId).notifier);
+          ws.connect();
+
+          debugPrint("🚀 Connected DRIVER WS for ride: $rideId status=$status");
+        } catch (e) {
+          debugPrint("❌ Error fetching ride #$rideId for driver: $e");
+        }
+      }
+
+      // =========================================================
+      // ✅ PASSENGER: connect WS for already accepted rides
+      // =========================================================
+      await Future.delayed(const Duration(seconds: 2));
+
+      final requests = container.read(requestWSProvider).incomingRequests;
+
+      final joinedRideIds = requests
+          .where((r) => r.passengerId == user.userId)
+          .where((r) => r.status.toLowerCase() == "accepted")
+          .map((r) => r.rideId)
+          .whereType<int>()
+          .toSet()
+          .difference(createdRideIds);
+
+      for (final rideId in joinedRideIds) {
+        await triggerPassengerRideWS(rideId);
+      }
+
       if (!mounted) return;
+
+      // ✅ Navigate to main screen
       Navigator.pushReplacement(
         context,
-        MaterialPageRoute(builder: (_) => const LoginScreen()),
+        MaterialPageRoute(builder: (_) => const MainScreen()),
       );
+
+      return;
     } catch (e, st) {
       debugPrint("❌ Error during startup: $e\n$st");
 
