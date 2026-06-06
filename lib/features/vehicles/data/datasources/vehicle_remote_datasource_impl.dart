@@ -1,6 +1,7 @@
 // ignore_for_file: avoid_print
 
 import 'package:dio/dio.dart';
+import 'package:hop_eir/base_url.dart';
 import 'package:hop_eir/features/vehicles/data/datasources/vehicle_remote_datasource.dart';
 import '../models/vehicle_model.dart';
 
@@ -13,7 +14,7 @@ class VehicleRemoteDataSourceImpl implements VehicleRemoteDataSource {
   Future<VehicleModel> postVehicle(VehicleModel vehicle) async {
     try {
       final response = await dio.post(
-        'https://hopeir.onrender.com/vehicles/',
+        '$baseURL/vehicles/',
         data: vehicle.toJson(),
         options: Options(headers: {'Content-Type': 'application/json'}),
       );
@@ -32,7 +33,7 @@ class VehicleRemoteDataSourceImpl implements VehicleRemoteDataSource {
   Future<VehicleModel> getVehicleById(int vehicleId) async {
     try {
       final response = await dio.get(
-        'https://hopeir.onrender.com/vehicles/?vehicle_id=$vehicleId',
+        '$baseURL/vehicles/?vehicle_id=$vehicleId',
       );
 
       if (response.statusCode == 200) {
@@ -55,7 +56,7 @@ class VehicleRemoteDataSourceImpl implements VehicleRemoteDataSource {
   Future<VehicleModel> getVehicleByUserid(String userId) async {
     try {
       final response = await dio.get(
-        'https://hopeir.onrender.com/vehicles/?user_id=$userId',
+        '$baseURL/vehicles/?user_id=$userId',
       );
 
       if (response.statusCode == 200) {

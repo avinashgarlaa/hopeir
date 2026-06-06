@@ -1,4 +1,5 @@
 import 'package:flutter_riverpod/flutter_riverpod.dart';
+import 'package:hop_eir/base_url.dart';
 import 'package:hop_eir/features/banner/data/repositories/banner_repo_impl.dart';
 import 'package:hop_eir/features/banner/domain/entities/banner_entity.dart';
 import 'package:hop_eir/features/banner/domain/usecases/fetch_active_banner.dart';
@@ -28,7 +29,7 @@ final fetchBannerUseCaseProvider = Provider<FetchActiveBanner>((ref) {
 /// Repository provider
 final bannerRepositoryProvider = Provider((ref) {
   return BannerRepositoryImpl(
-    apiUrl: 'https://hopeir.onrender.com/poster/active/get/',
+    apiUrl: '$baseURL/poster/active/get/',
   );
 });
 

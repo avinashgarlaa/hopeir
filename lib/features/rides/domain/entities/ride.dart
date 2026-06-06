@@ -5,6 +5,7 @@ class Ride {
   final int seats;
   final int startLocation;
   final int endLocation;
+  final List routePath;
   final double distance;
   final String status;
   final DateTime startTime;
@@ -17,6 +18,7 @@ class Ride {
     required this.vehicle,
     required this.startLocation,
     required this.endLocation,
+    required this.routePath,
     required this.distance,
     required this.status,
     required this.startTime,

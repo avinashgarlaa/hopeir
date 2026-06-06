@@ -1,6 +1,7 @@
 import 'dart:async';
 
 import 'package:flutter/material.dart';
+import 'package:flutter_animate/flutter_animate.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:google_fonts/google_fonts.dart';
 import 'package:hop_eir/features/rides/presentation/pages/ride_chat_page.dart';
@@ -21,7 +22,7 @@ class RideCard extends ConsumerStatefulWidget {
     super.key,
     required this.ride,
     required this.onActionCompleted,
-    this.primaryColor = const Color.fromRGBO(137, 177, 98, 1),
+    this.primaryColor = const Color(0xFF89B162),
   });
 
   @override
@@ -31,28 +32,59 @@ class RideCard extends ConsumerStatefulWidget {
 class _RideCardState extends ConsumerState<RideCard> {
   bool _actionInProgress = false;
 
-  bool _isRideActiveForTracking(String status) {
+  bool _isRideActiveForTracking(
+    String status,
+  ) {
     final s = status.toLowerCase();
+
     return s == 'ongoing' || s == 'started' || s == 'in_progress';
   }
 
   @override
-  Widget build(BuildContext context) {
+  Widget build(
+    BuildContext context,
+  ) {
     final ride = widget.ride;
 
-    final wsState = ref.watch(rideWSControllerProvider(ride.id));
+    final wsState = ref.watch(
+      rideWSControllerProvider(
+        ride.id,
+      ),
+    );
+
     final status = wsState.status.toLowerCase();
 
-    final vehicleAsync = ref.watch(vehicleByIdProvider(ride.vehicle));
-    final fromStationAsync = ref.watch(stationByIdProvider(ride.startLocation));
-    final toStationAsync = ref.watch(stationByIdProvider(ride.endLocation));
+    final vehicleAsync = ref.watch(
+      vehicleByIdProvider(
+        ride.vehicle,
+      ),
+    );
 
-    final formattedDate =
-        DateFormat('EEE, MMM d | h:mm a').format(ride.startTime);
+    final fromAsync = ref.watch(
+      stationByIdProvider(
+        ride.startLocation,
+      ),
+    );
+
+    final toAsync = ref.watch(
+      stationByIdProvider(
+        ride.endLocation,
+      ),
+    );
+
+    final formattedDate = DateFormat(
+      'EEE, MMM d',
+    ).format(ride.startTime);
+
+    final formattedTime = DateFormat(
+      'hh:mm a',
+    ).format(ride.startTime);
 
     final showStart = status == "pending" || status == "scheduled";
+
     final showEnd =
-        status == "ongoing" || status == "in_progress" || status == "started";
+        status == "ongoing" || status == "started" || status == "in_progress";
+
     final showCancel = [
       "pending",
       "scheduled",
@@ -62,212 +94,663 @@ class _RideCardState extends ConsumerState<RideCard> {
     ].contains(status);
 
     return Container(
-      margin: const EdgeInsets.symmetric(horizontal: 16, vertical: 10),
-      padding: const EdgeInsets.all(20),
+      margin: const EdgeInsets.symmetric(
+        horizontal: 16,
+        vertical: 10,
+      ),
       decoration: BoxDecoration(
         color: Colors.white,
-        borderRadius: BorderRadius.circular(18),
-        boxShadow: const [
+        borderRadius: BorderRadius.circular(
+          28,
+        ),
+        boxShadow: [
           BoxShadow(
-            color: Colors.black12,
-            blurRadius: 10,
-            offset: Offset(0, 4),
+            color: Colors.black.withOpacity(
+              0.05,
+            ),
+            blurRadius: 30,
+            offset: const Offset(
+              0,
+              12,
+            ),
           ),
         ],
       ),
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-          /// 🚏 Route Display
-          Row(
-            crossAxisAlignment: CrossAxisAlignment.start,
-            children: [
-              const Icon(Icons.alt_route_rounded, color: Colors.deepPurple),
-              const SizedBox(width: 10),
+      child: Padding(
+        padding: const EdgeInsets.all(
+          18,
+        ),
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            // ===================================================
+            // HEADER
+            // ===================================================
 
-              // Route names
-              Expanded(
-                child: Column(
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  children: [
-                    _buildAsyncText(fromStationAsync, (s) => s.name),
-                    const SizedBox(height: 2),
-                    const Icon(Icons.arrow_downward_rounded, size: 16),
-                    const SizedBox(height: 2),
-                    _buildAsyncText(toStationAsync, (s) => s.name),
-                    const SizedBox(height: 8),
-
-                    // 🗺️ View on Map button
-                    Row(
-                      children: [
-                        TextButton.icon(
-                          icon: const Icon(Icons.map_outlined, size: 18),
-                          label: const Text("View on Map"),
-                          onPressed: () {
-                            final fromStation = fromStationAsync.value;
-                            final toStation = toStationAsync.value;
-                            if (fromStation == null || toStation == null)
-                              return;
-
-                            // ✅ ensure WS connected for tracking updates
-                            ref
-                                .read(
-                                    rideWSControllerProvider(ride.id).notifier)
-                                .connect();
-
-                            Navigator.push(
-                              context,
-                              MaterialPageRoute(
-                                builder: (_) => RideMapPage(
-                                  rideId: ride.id,
-                                  fromLat: fromStation.latitude,
-                                  fromLng: fromStation.longitude,
-                                  toLat: toStation.latitude,
-                                  toLng: toStation.longitude,
-                                  fromName: fromStation.name,
-                                  toName: toStation.name,
-                                ),
-                              ),
-                            );
-                          },
+            Row(
+              children: [
+                Container(
+                  width: 58,
+                  height: 58,
+                  decoration: BoxDecoration(
+                    gradient: const LinearGradient(
+                      colors: [
+                        Color(
+                          0xFF89B162,
+                        ),
+                        Color(
+                          0xFFAED581,
                         ),
                       ],
                     ),
-                  ],
-                ),
-              ),
-
-              _statusBadge(status),
-            ],
-          ),
-
-          const SizedBox(height: 16),
-
-          /// 🕓 Date & Time
-          Row(
-            children: [
-              const Icon(Icons.access_time, size: 18, color: Colors.grey),
-              const SizedBox(width: 6),
-              Text(
-                formattedDate,
-                style: GoogleFonts.poppins(
-                  fontSize: 14,
-                  color: Colors.black87,
-                ),
-              ),
-            ],
-          ),
-
-          const SizedBox(height: 12),
-
-          /// 🚗 Vehicle Info
-          Row(
-            children: [
-              Icon(Icons.directions_car, color: widget.primaryColor),
-              const SizedBox(width: 8),
-              Expanded(
-                child: _buildAsyncText(vehicleAsync, (v) {
-                  return '${v.vehicleModel} (${v.vehicleLicensePlate}) • ${v.vehicleColor}';
-                }),
-              ),
-            ],
-          ),
-
-          const SizedBox(height: 18),
-
-          /// 🎯 Action Buttons
-          Row(
-            mainAxisAlignment: MainAxisAlignment.spaceEvenly,
-            children: [
-              if (showStart) _buildActionButton("Start", widget.primaryColor),
-              if (showEnd) _buildActionButton("End", Colors.orange),
-              if (showCancel) _buildActionButton("Cancel", Colors.red.shade400),
-
-              // 💬 CHAT BUTTON
-              ElevatedButton.icon(
-                onPressed: () {
-                  Navigator.push(
-                    context,
-                    MaterialPageRoute(
-                      builder: (_) => RideChatPage(rideId: ride.id),
+                    borderRadius: BorderRadius.circular(
+                      20,
                     ),
-                  );
-                },
-                icon: const Icon(Icons.chat_bubble_outline, size: 18),
-                label: Text(
-                  "Chat",
-                  style: GoogleFonts.poppins(fontSize: 13),
-                ),
-                style: ElevatedButton.styleFrom(
-                  backgroundColor: Colors.blueGrey,
-                  foregroundColor: Colors.white,
-                  padding:
-                      const EdgeInsets.symmetric(horizontal: 10, vertical: 12),
-                  shape: RoundedRectangleBorder(
-                    borderRadius: BorderRadius.circular(12),
+                  ),
+                  child: const Icon(
+                    Icons.directions_car_rounded,
+                    color: Colors.white,
+                    size: 28,
                   ),
                 ),
-              ),
-            ],
-          ),
+                const SizedBox(
+                  width: 14,
+                ),
+                Expanded(
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      Text(
+                        "Ride Journey",
+                        style: GoogleFonts.poppins(
+                          fontWeight: FontWeight.w700,
+                          fontSize: 18,
+                        ),
+                      ),
+                      const SizedBox(
+                        height: 4,
+                      ),
+                      Text(
+                        "$formattedDate • $formattedTime",
+                        style: GoogleFonts.poppins(
+                          color: Colors.grey,
+                          fontSize: 12,
+                        ),
+                      ),
+                    ],
+                  ),
+                ),
+                _statusBadge(
+                  status,
+                ),
+              ],
+            ),
 
-          // ✅ Tracking status row
-          const SizedBox(height: 10),
-          Row(
-            children: [
-              const Icon(Icons.my_location, size: 16, color: Colors.grey),
-              const SizedBox(width: 6),
+            const SizedBox(
+              height: 22,
+            ),
+
+            // ===================================================
+            // ROUTE SECTION
+            // ===================================================
+
+            fromAsync.when(
+              data: (from) {
+                return toAsync.when(
+                  data: (to) {
+                    return Container(
+                      padding: const EdgeInsets.all(
+                        18,
+                      ),
+                      decoration: BoxDecoration(
+                        color: const Color(
+                          0xFFF8FBF4,
+                        ),
+                        borderRadius: BorderRadius.circular(
+                          24,
+                        ),
+                      ),
+                      child: Column(
+                        children: [
+                          _routeTile(
+                            "Pickup",
+                            from.name,
+                            Icons.my_location_rounded,
+                            Colors.green,
+                          ),
+                          Padding(
+                            padding: const EdgeInsets.symmetric(
+                              vertical: 10,
+                            ),
+                            child: Row(
+                              children: List.generate(
+                                40,
+                                (
+                                  index,
+                                ) {
+                                  return Expanded(
+                                    child: Container(
+                                      height: 1,
+                                      color: index.isEven
+                                          ? Colors.grey.withOpacity(
+                                              0.2,
+                                            )
+                                          : Colors.transparent,
+                                    ),
+                                  );
+                                },
+                              ),
+                            ),
+                          ),
+                          _routeTile(
+                            "Destination",
+                            to.name,
+                            Icons.location_on_rounded,
+                            Colors.redAccent,
+                          ),
+                          const SizedBox(
+                            height: 16,
+                          ),
+                          SizedBox(
+                            width: double.infinity,
+                            child: OutlinedButton.icon(
+                              onPressed: () {
+                                final fromStation = fromAsync.value;
+
+                                final toStation = toAsync.value;
+
+                                if (fromStation == null || toStation == null) {
+                                  return;
+                                }
+
+                                ref
+                                    .read(
+                                      rideWSControllerProvider(
+                                        ride.id,
+                                      ).notifier,
+                                    )
+                                    .connect();
+
+                                Navigator.push(
+                                  context,
+                                  MaterialPageRoute(
+                                    builder: (_) => RideMapPage(
+                                      rideId: ride.id,
+                                      fromLat: fromStation.latitude,
+                                      fromLng: fromStation.longitude,
+                                      toLat: toStation.latitude,
+                                      toLng: toStation.longitude,
+                                      fromName: fromStation.name,
+                                      toName: toStation.name,
+                                    ),
+                                  ),
+                                );
+                              },
+                              icon: const Icon(
+                                Icons.map_rounded,
+                                size: 18,
+                              ),
+                              label: Text(
+                                "View Route Map",
+                                style: GoogleFonts.poppins(
+                                  fontWeight: FontWeight.w600,
+                                ),
+                              ),
+                              style: OutlinedButton.styleFrom(
+                                foregroundColor: widget.primaryColor,
+                                side: BorderSide(
+                                  color: widget.primaryColor.withOpacity(
+                                    0.4,
+                                  ),
+                                ),
+                                padding: const EdgeInsets.symmetric(
+                                  vertical: 14,
+                                ),
+                                shape: RoundedRectangleBorder(
+                                  borderRadius: BorderRadius.circular(
+                                    16,
+                                  ),
+                                ),
+                              ),
+                            ),
+                          ),
+                        ],
+                      ),
+                    );
+                  },
+                  loading: () => const SizedBox(),
+                  error: (
+                    _,
+                    __,
+                  ) =>
+                      const SizedBox(),
+                );
+              },
+              loading: () => const SizedBox(),
+              error: (
+                _,
+                __,
+              ) =>
+                  const SizedBox(),
+            ),
+
+            const SizedBox(
+              height: 18,
+            ),
+
+            // ===================================================
+            // VEHICLE
+            // ===================================================
+
+            vehicleAsync.when(
+              data: (vehicle) {
+                return Container(
+                  padding: const EdgeInsets.all(
+                    14,
+                  ),
+                  decoration: BoxDecoration(
+                    color: Colors.grey.shade50,
+                    borderRadius: BorderRadius.circular(
+                      20,
+                    ),
+                  ),
+                  child: Row(
+                    children: [
+                      Container(
+                        width: 46,
+                        height: 46,
+                        decoration: BoxDecoration(
+                          color: widget.primaryColor.withOpacity(
+                            0.1,
+                          ),
+                          borderRadius: BorderRadius.circular(
+                            14,
+                          ),
+                        ),
+                        child: Icon(
+                          Icons.electric_car_rounded,
+                          color: widget.primaryColor,
+                        ),
+                      ),
+                      const SizedBox(
+                        width: 12,
+                      ),
+                      Expanded(
+                        child: Column(
+                          crossAxisAlignment: CrossAxisAlignment.start,
+                          children: [
+                            Text(
+                              vehicle.vehicleModel,
+                              style: GoogleFonts.poppins(
+                                fontWeight: FontWeight.w700,
+                                fontSize: 14,
+                              ),
+                            ),
+                            const SizedBox(
+                              height: 3,
+                            ),
+                            Text(
+                              "${vehicle.vehicleLicensePlate} • ${vehicle.vehicleColor}",
+                              style: GoogleFonts.poppins(
+                                color: Colors.grey,
+                                fontSize: 12,
+                              ),
+                            ),
+                          ],
+                        ),
+                      ),
+                    ],
+                  ),
+                );
+              },
+              loading: () => const SizedBox(),
+              error: (
+                _,
+                __,
+              ) =>
+                  const SizedBox(),
+            ),
+
+            const SizedBox(
+              height: 20,
+            ),
+
+            // ===================================================
+            // LIVE TRACKING STATUS
+            // ===================================================
+
+            Container(
+              padding: const EdgeInsets.symmetric(
+                horizontal: 14,
+                vertical: 12,
+              ),
+              decoration: BoxDecoration(
+                color: wsState.driverTrackingEnabled
+                    ? Colors.green.withOpacity(
+                        0.08,
+                      )
+                    : Colors.red.withOpacity(
+                        0.08,
+                      ),
+                borderRadius: BorderRadius.circular(
+                  18,
+                ),
+              ),
+              child: Row(
+                children: [
+                  Icon(
+                    Icons.my_location_rounded,
+                    color: wsState.driverTrackingEnabled
+                        ? Colors.green
+                        : Colors.red,
+                    size: 18,
+                  ),
+                  const SizedBox(
+                    width: 10,
+                  ),
+                  Text(
+                    wsState.driverTrackingEnabled
+                        ? "Live tracking enabled"
+                        : "Live tracking disabled",
+                    style: GoogleFonts.poppins(
+                      color: wsState.driverTrackingEnabled
+                          ? Colors.green
+                          : Colors.red,
+                      fontWeight: FontWeight.w600,
+                      fontSize: 12,
+                    ),
+                  ),
+                ],
+              ),
+            ),
+
+            const SizedBox(
+              height: 20,
+            ),
+
+            // ===================================================
+            // ACTIONS
+            // ===================================================
+
+            Wrap(
+              spacing: 12,
+              runSpacing: 12,
+              children: [
+                if (showStart)
+                  _actionButton(
+                    "Start Ride",
+                    Icons.play_arrow_rounded,
+                    widget.primaryColor,
+                  ),
+                if (showEnd)
+                  _actionButton(
+                    "End Ride",
+                    Icons.stop_rounded,
+                    Colors.orange,
+                  ),
+                if (showCancel)
+                  _actionButton(
+                    "Cancel",
+                    Icons.close_rounded,
+                    Colors.redAccent,
+                  ),
+                _chatButton(),
+              ],
+            ),
+
+            if (wsState.lastError != null) ...[
+              const SizedBox(
+                height: 12,
+              ),
               Text(
-                wsState.driverTrackingEnabled
-                    ? "Live tracking ON"
-                    : "Live tracking OFF",
+                wsState.lastError!,
                 style: GoogleFonts.poppins(
+                  color: Colors.red,
                   fontSize: 12,
-                  color:
-                      wsState.driverTrackingEnabled ? Colors.green : Colors.red,
-                  fontWeight: FontWeight.w600,
                 ),
               ),
             ],
-          ),
-
-          if (wsState.lastError != null) ...[
-            const SizedBox(height: 6),
-            Text(
-              wsState.lastError!,
-              maxLines: 2,
-              overflow: TextOverflow.ellipsis,
-              style: GoogleFonts.poppins(fontSize: 12, color: Colors.red),
-            ),
           ],
-        ],
+        ),
+      ),
+    )
+        .animate()
+        .fadeIn(
+          duration: 450.ms,
+        )
+        .slideY(
+          begin: 0.08,
+          end: 0,
+        );
+  }
+
+  // ===========================================================
+  // ACTION BUTTON
+  // ===========================================================
+
+  Widget _actionButton(
+    String label,
+    IconData icon,
+    Color color,
+  ) {
+    final action = _mapLabelToAction(label);
+
+    return SizedBox(
+      height: 52,
+      child: ElevatedButton.icon(
+        onPressed: (_actionInProgress || action == null)
+            ? null
+            : () async {
+                setState(
+                  () => _actionInProgress = true,
+                );
+
+                final ws = ref.read(
+                  rideWSControllerProvider(
+                    widget.ride.id,
+                  ).notifier,
+                );
+
+                try {
+                  ws.connect();
+
+                  ws.sendAction(
+                    action,
+                  );
+
+                  if (action == "start") {
+                    await Future.delayed(
+                      const Duration(
+                        seconds: 1,
+                      ),
+                    );
+
+                    final latest = ref
+                        .read(
+                          rideWSControllerProvider(
+                            widget.ride.id,
+                          ),
+                        )
+                        .status;
+
+                    if (!_isRideActiveForTracking(
+                      latest,
+                    )) {
+                      await Future.delayed(
+                        const Duration(
+                          seconds: 1,
+                        ),
+                      );
+                    }
+
+                    await ws.startDriverLiveTracking();
+                  }
+
+                  if (action == "end" || action == "cancel") {
+                    await ws.stopDriverLiveTracking();
+                  }
+                } finally {
+                  if (mounted) {
+                    setState(
+                      () => _actionInProgress = false,
+                    );
+                  }
+
+                  widget.onActionCompleted();
+                }
+              },
+        icon: Icon(
+          icon,
+          size: 18,
+        ),
+        label: Text(
+          label,
+          style: GoogleFonts.poppins(
+            fontWeight: FontWeight.w600,
+            fontSize: 13,
+          ),
+        ),
+        style: ElevatedButton.styleFrom(
+          backgroundColor: color,
+          foregroundColor: Colors.white,
+          elevation: 0,
+          padding: const EdgeInsets.symmetric(
+            horizontal: 18,
+            vertical: 14,
+          ),
+          shape: RoundedRectangleBorder(
+            borderRadius: BorderRadius.circular(
+              18,
+            ),
+          ),
+        ),
       ),
     );
   }
 
-  /// 🔖 Status Badge
-  Widget _statusBadge(String status) {
+  Widget _chatButton() {
+    return SizedBox(
+      height: 52,
+      child: ElevatedButton.icon(
+        onPressed: () {
+          Navigator.push(
+            context,
+            MaterialPageRoute(
+              builder: (_) => RideChatPage(
+                rideId: widget.ride.id,
+              ),
+            ),
+          );
+        },
+        icon: const Icon(
+          Icons.chat_bubble_rounded,
+          size: 18,
+        ),
+        label: Text(
+          "Chat",
+          style: GoogleFonts.poppins(
+            fontWeight: FontWeight.w600,
+          ),
+        ),
+        style: ElevatedButton.styleFrom(
+          backgroundColor: Colors.blueGrey,
+          foregroundColor: Colors.white,
+          elevation: 0,
+          padding: const EdgeInsets.symmetric(
+            horizontal: 18,
+            vertical: 14,
+          ),
+          shape: RoundedRectangleBorder(
+            borderRadius: BorderRadius.circular(
+              18,
+            ),
+          ),
+        ),
+      ),
+    );
+  }
+
+  Widget _routeTile(
+    String title,
+    String value,
+    IconData icon,
+    Color color,
+  ) {
+    return Row(
+      children: [
+        Icon(
+          icon,
+          color: color,
+          size: 20,
+        ),
+        const SizedBox(
+          width: 12,
+        ),
+        Expanded(
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Text(
+                title,
+                style: GoogleFonts.poppins(
+                  color: Colors.grey,
+                  fontSize: 11,
+                ),
+              ),
+              const SizedBox(
+                height: 3,
+              ),
+              Text(
+                value,
+                style: GoogleFonts.poppins(
+                  fontWeight: FontWeight.w600,
+                  fontSize: 14,
+                ),
+              ),
+            ],
+          ),
+        ),
+      ],
+    );
+  }
+
+  Widget _statusBadge(
+    String status,
+  ) {
     final color = _getStatusColor(status);
+
     final icon = _getStatusIcon(status);
 
     return Container(
-      padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
+      padding: const EdgeInsets.symmetric(
+        horizontal: 12,
+        vertical: 7,
+      ),
       decoration: BoxDecoration(
-        color: color.withOpacity(0.1),
-        borderRadius: BorderRadius.circular(20),
-        border: Border.all(color: color.withOpacity(0.3)),
+        color: color.withOpacity(
+          0.1,
+        ),
+        borderRadius: BorderRadius.circular(
+          50,
+        ),
       ),
       child: Row(
         mainAxisSize: MainAxisSize.min,
         children: [
-          Icon(icon, size: 14, color: color),
-          const SizedBox(width: 4),
+          Icon(
+            icon,
+            size: 14,
+            color: color,
+          ),
+          const SizedBox(
+            width: 5,
+          ),
           Text(
             _capitalize(status),
             style: GoogleFonts.poppins(
-              fontSize: 12,
-              fontWeight: FontWeight.w600,
               color: color,
+              fontWeight: FontWeight.w700,
+              fontSize: 11,
             ),
           ),
         ],
@@ -275,163 +758,73 @@ class _RideCardState extends ConsumerState<RideCard> {
     );
   }
 
-  /// 🚦 Action Buttons (Start / End / Cancel)
-  Widget _buildActionButton(String label, Color color) {
-    final action = _mapLabelToAction(label);
-
-    return ElevatedButton.icon(
-      onPressed: (_actionInProgress || action == null)
-          ? null
-          : () async {
-              setState(() => _actionInProgress = true);
-
-              final ws = ref.read(
-                rideWSControllerProvider(widget.ride.id).notifier,
-              );
-
-              try {
-                ws.connect();
-
-                // ✅ send action
-                ws.sendAction(action);
-
-                // ✅ MAIN FIX:
-                // start tracking AFTER backend updates status
-                if (action == "start") {
-                  // wait a bit for ride_status_update
-                  await Future.delayed(const Duration(seconds: 1));
-
-                  final latest =
-                      ref.read(rideWSControllerProvider(widget.ride.id)).status;
-
-                  // if still not active, wait again
-                  if (!_isRideActiveForTracking(latest)) {
-                    await Future.delayed(const Duration(seconds: 1));
-                  }
-
-                  // finally start tracking
-                  await ws.startDriverLiveTracking();
-                }
-
-                if (action == "end" || action == "cancel") {
-                  await ws.stopDriverLiveTracking();
-                }
-              } finally {
-                if (mounted) setState(() => _actionInProgress = false);
-                widget.onActionCompleted();
-              }
-            },
-      icon: Icon(_getActionIcon(label), size: 18),
-      label: Text(
-        label,
-        style: GoogleFonts.poppins(fontSize: 14),
-      ),
-      style: ElevatedButton.styleFrom(
-        foregroundColor: Colors.white,
-        backgroundColor: color,
-        padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
-        shape: RoundedRectangleBorder(
-          borderRadius: BorderRadius.circular(12),
-        ),
-        elevation: 2,
-      ),
-    );
-  }
-
-  String? _mapLabelToAction(String label) {
+  String? _mapLabelToAction(
+    String label,
+  ) {
     switch (label.toLowerCase()) {
-      case 'start':
+      case 'start ride':
         return 'start';
-      case 'end':
+
+      case 'end ride':
         return 'end';
+
       case 'cancel':
         return 'cancel';
+
       default:
         return null;
     }
   }
 
-  /// 🌐 Async Data Handler
-  Widget _buildAsyncText<T>(
-    AsyncValue<T> asyncValue,
-    String Function(T) builder,
+  Color _getStatusColor(
+    String status,
   ) {
-    return asyncValue.when(
-      data: (value) => Text(
-        builder(value),
-        style: GoogleFonts.poppins(
-          fontSize: 16,
-          fontWeight: FontWeight.w600,
-          color: Colors.black87,
-        ),
-      ),
-      loading: () => _shimmerText(width: 120),
-      error: (_, __) => Text(
-        "Unavailable",
-        style: GoogleFonts.poppins(color: Colors.redAccent),
-      ),
-    );
-  }
-
-  Widget _shimmerText({required double width}) {
-    return Container(
-      width: width,
-      height: 16,
-      decoration: BoxDecoration(
-        color: Colors.grey.shade300,
-        borderRadius: BorderRadius.circular(6),
-      ),
-    );
-  }
-
-  Color _getStatusColor(String status) {
     switch (status.toLowerCase()) {
       case "scheduled":
-        return const Color(0xFF64B5F6);
+        return Colors.blue;
+
       case "ongoing":
       case "in_progress":
       case "started":
-        return const Color(0xFFFFA726);
+        return Colors.orange;
+
       case "completed":
-        return const Color(0xFF66BB6A);
+        return Colors.green;
+
       case "cancelled":
-        return const Color(0xFFEF5350);
+        return Colors.red;
+
       default:
         return Colors.grey;
     }
   }
 
-  IconData _getStatusIcon(String status) {
+  IconData _getStatusIcon(
+    String status,
+  ) {
     switch (status.toLowerCase()) {
       case "scheduled":
         return Icons.schedule;
+
       case "ongoing":
       case "in_progress":
       case "started":
         return Icons.directions_run;
+
       case "completed":
-        return Icons.check_circle_outline;
+        return Icons.check_circle;
+
       case "cancelled":
-        return Icons.cancel_outlined;
+        return Icons.cancel;
+
       default:
         return Icons.help_outline;
     }
   }
 
-  IconData _getActionIcon(String label) {
-    switch (label.toLowerCase()) {
-      case "start":
-        return Icons.play_arrow_rounded;
-      case "end":
-        return Icons.stop_rounded;
-      case "cancel":
-        return Icons.close_rounded;
-      default:
-        return Icons.flash_on;
-    }
-  }
-
-  String _capitalize(String s) {
-    return s.isEmpty ? s : s[0].toUpperCase() + s.substring(1).toLowerCase();
+  String _capitalize(
+    String s,
+  ) {
+    return s.isEmpty ? s : s[0].toUpperCase() + s.substring(1);
   }
 }

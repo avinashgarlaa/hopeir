@@ -1,6 +1,7 @@
 // ignore_for_file: avoid_print
 
 import 'package:dio/dio.dart';
+import 'package:hop_eir/base_url.dart';
 import 'package:hop_eir/features/rides/data/datasources/ride_remote_datasource.dart';
 import 'package:hop_eir/features/rides/data/models/ride_model.dart';
 import 'package:hop_eir/features/rides/domain/entities/ride.dart';
@@ -17,12 +18,13 @@ class RideRemoteDatasourceImpl extends RideRemoteDatasource {
     required int seats,
     required int startLocation,
     required int endLocation,
+    required List routePath,
     required double distance,
     required DateTime startTime,
     required DateTime endTime,
   }) async {
     final response = await dio.post(
-      'https://hopeir.onrender.com/rides/create/',
+      '$baseURL/rides/create/',
       data: {
         "start_time": startTime.toIso8601String(),
         "end_time": endTime.toIso8601String(),
@@ -33,6 +35,7 @@ class RideRemoteDatasourceImpl extends RideRemoteDatasource {
         "vehicle": vehicle,
         "start_location": startLocation,
         "end_location": endLocation,
+        "route_path": routePath
       },
     );
     if (response.statusCode == 200 || response.statusCode == 201) {
@@ -43,8 +46,40 @@ class RideRemoteDatasourceImpl extends RideRemoteDatasource {
   }
 
   @override
+  Future<List<Map<String, dynamic>>> matchRides({
+    required int riderStartStationId,
+    required int riderEndStationId,
+    required String riderUserId,
+    int timeWindowMinutes = 60,
+  }) async {
+    try {
+      final response = await dio.get(
+        '$baseURL/rides/match/',
+        queryParameters: {
+          'rider_start_station_id': riderStartStationId,
+          'rider_end_station_id': riderEndStationId,
+          'rider_user_id': riderUserId,
+        },
+      );
+
+      print("MATCH URL:");
+      print(response.requestOptions.uri);
+
+      print("MATCHED RIDES RESPONSE:");
+      print(response.data);
+
+      return List<Map<String, dynamic>>.from(
+        response.data['results'],
+      );
+    } catch (e) {
+      print("❌ Match rides error: $e");
+      rethrow;
+    }
+  }
+
+  @override
   Future<List<Map<String, dynamic>>> getRides() async {
-    final response = await dio.get('https://hopeir.onrender.com/rides/get/');
+    final response = await dio.get('$baseURL/rides/get/');
     if (response.statusCode == 200 || response.statusCode == 201) {
       final data = response.data;
       if (data is List) {
@@ -62,7 +97,7 @@ class RideRemoteDatasourceImpl extends RideRemoteDatasource {
     required String currentUserId,
   }) async {
     final response = await dio.get(
-      'https://hopeir.onrender.com/rides/get/?user_id=$currentUserId',
+      '$baseURL/rides/get/?user_id=$currentUserId',
     );
     if (response.statusCode == 200 || response.statusCode == 201) {
       final data = response.data;
@@ -82,7 +117,7 @@ class RideRemoteDatasourceImpl extends RideRemoteDatasource {
     required String fromUser,
   }) async {
     final response = await dio.post(
-      'https://hopeir.onrender.com/rides/request/',
+      '$baseURL/rides/request/',
       data: {"ride": ride, "from_user": fromUser},
     );
     if (response.statusCode == 200 || response.statusCode == 201) {
@@ -98,7 +133,7 @@ class RideRemoteDatasourceImpl extends RideRemoteDatasource {
     required String currentUserId,
   }) async {
     final response = await dio.get(
-      'https://hopeir.onrender.com/rides/request/get/?user_id=$currentUserId',
+      '$baseURL/rides/request/get/?user_id=$currentUserId',
     );
 
     if (response.statusCode == 200 || response.statusCode == 201) {
@@ -119,7 +154,7 @@ class RideRemoteDatasourceImpl extends RideRemoteDatasource {
   @override
   Future<Ride> getRideById({required int rideId}) async {
     final response = await dio.get(
-      'https://hopeir.onrender.com/rides/get/?ride_id=$rideId',
+      '$baseURL/rides/get/?ride_id=$rideId',
     );
 
     if (response.statusCode == 200) {

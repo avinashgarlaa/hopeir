@@ -2,6 +2,14 @@ import 'package:hop_eir/features/rides/domain/entities/ride.dart';
 
 abstract class RideRepository {
   Future<List<Ride>> getRides();
+
+  Future<List<Map<String, dynamic>>> matchRides({
+    required int riderStartStationId,
+    required int riderEndStationId,
+    required String riderUserId,
+    int timeWindowMinutes = 60,
+  });
+
   Future<List<Ride>> createdRides({required String currentUserId});
   Future<Ride> createRide({
     required String user,
@@ -9,6 +17,7 @@ abstract class RideRepository {
     required int seats,
     required int startLocation,
     required int endLocation,
+    required List routePath,
     required double distance,
     required DateTime startTime,
     required DateTime endTime,

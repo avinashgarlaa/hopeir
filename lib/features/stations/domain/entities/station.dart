@@ -4,11 +4,11 @@ class Station {
   final double latitude;
   final double longitude;
   final String address;
-  final String sector;
+  final String? sector;
   final String city;
   final String country;
-  final String postalCode;
-  final String landmark;
+  final String? postalCode;
+  final String? landmark;
 
   Station({
     required this.id,

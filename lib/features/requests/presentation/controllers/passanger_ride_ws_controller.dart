@@ -4,6 +4,7 @@ import 'dart:async';
 import 'dart:convert';
 
 import 'package:flutter_riverpod/flutter_riverpod.dart';
+import 'package:hop_eir/base_url.dart';
 import 'package:http/http.dart' as http;
 import 'package:web_socket_channel/web_socket_channel.dart';
 import 'package:web_socket_channel/io.dart';
@@ -19,9 +20,12 @@ final passengerRideWSProvider =
   (ref, rideId) => PassengerRideWSController(ref, rideId),
 );
 
+// ✅ Global caches for ride status
 final Set<String> _notifiedRides = {};
 final Set<int> _404Rides = {};
 final Set<int> _finalRides = {};
+
+// ✅ Public helper function to check if a ride is already final (cached)
 bool isRideFinalCached(int rideId) => _finalRides.contains(rideId);
 
 class PassengerRideWSController extends StateNotifier<String> {
@@ -91,7 +95,7 @@ class PassengerRideWSController extends StateNotifier<String> {
   Future<String> _fetchInitialStatus() async {
     try {
       final response = await http.get(
-        Uri.parse('https://hopeir.onrender.com/rides/get/?ride_id=$rideId'),
+        Uri.parse('$baseURL/get/?ride_id=$rideId'),
       );
 
       if (response.statusCode == 200) {
@@ -167,8 +171,9 @@ class PassengerRideWSController extends StateNotifier<String> {
     final userId = user?.userId.toString();
 
     return Uri(
-      scheme: "wss",
-      host: "hopeir.onrender.com",
+      scheme: "ws",
+      host: "34.122.56.250",
+      port: 8000,
       path: "/ws/ride/$rideId/",
       queryParameters: userId == null ? null : {"user_id": userId},
     );
@@ -358,6 +363,9 @@ class PassengerRideWSController extends StateNotifier<String> {
       _channel = null;
     } catch (_) {}
   }
+
+  // ✅ Public method to check if ride is final (can be called from other controllers)
+  bool isFinal() => _isFinal;
 
   @override
   void dispose() {

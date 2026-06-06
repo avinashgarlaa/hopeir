@@ -38,85 +38,150 @@ class _RidesPageState extends ConsumerState<RidesPage> {
           seats: _seats!,
         ),
       ),
-    );
+    ).then((_) {
+      setState(() {
+        _fromStation = null;
+        _toStation = null;
+        _seats = null;
+      });
+    });
   }
 
   void _showStationSelector({required bool isFrom}) {
     final stationsAsync = ref.read(allStationsProvider);
-    stationsAsync.whenData((stations) {
-      // Sort stations alphabetically by name
-      final sortedStations = [
-        ...stations
-      ] // create a copy to avoid mutating original list
-        ..sort((a, b) => a.name.toLowerCase().compareTo(b.name.toLowerCase()));
 
-      showModalBottomSheet(
-        context: context,
-        isScrollControlled: true,
-        backgroundColor: Colors.white,
-        shape: const RoundedRectangleBorder(
-          borderRadius: BorderRadius.vertical(top: Radius.circular(24)),
-        ),
-        builder: (context) {
-          return SafeArea(
-            child: SizedBox(
-              height: MediaQuery.of(context).size.height * 0.6,
-              child: Column(
-                children: [
-                  const SizedBox(height: 12),
-                  Container(
-                    width: 50,
-                    height: 5,
-                    decoration: BoxDecoration(
-                      color: Colors.grey[300],
-                      borderRadius: BorderRadius.circular(10),
-                    ),
-                  ),
-                  Padding(
-                    padding: const EdgeInsets.all(16),
-                    child: Text(
-                      "Select Station",
-                      style: GoogleFonts.poppins(
-                        fontSize: 18,
-                        fontWeight: FontWeight.w600,
-                        color: primaryColor,
+    stationsAsync.when(
+      data: (stations) {
+        // Sort stations alphabetically
+        final sortedStations = [...stations]..sort(
+            (a, b) => a.name.toLowerCase().compareTo(
+                  b.name.toLowerCase(),
+                ),
+          );
+
+        showModalBottomSheet(
+          context: context,
+          isScrollControlled: true,
+          backgroundColor: Colors.white,
+          shape: const RoundedRectangleBorder(
+            borderRadius: BorderRadius.vertical(
+              top: Radius.circular(24),
+            ),
+          ),
+          builder: (context) {
+            return SafeArea(
+              child: SizedBox(
+                height: MediaQuery.of(context).size.height * 0.6,
+                child: Column(
+                  children: [
+                    const SizedBox(height: 12),
+
+                    // Top drag indicator
+                    Container(
+                      width: 50,
+                      height: 5,
+                      decoration: BoxDecoration(
+                        color: Colors.grey[300],
+                        borderRadius: BorderRadius.circular(10),
                       ),
                     ),
-                  ),
-                  Expanded(
-                    child: ListView.builder(
-                      padding: const EdgeInsets.only(bottom: 20),
-                      itemCount: sortedStations.length,
-                      itemBuilder: (context, index) {
-                        final station = sortedStations[index];
-                        return ListTile(
-                          leading:
-                              const Icon(Icons.train, color: Colors.black54),
-                          title: Text(
-                            station.name,
-                            style: GoogleFonts.poppins(fontSize: 15),
-                          ),
-                          onTap: () {
-                            setState(() {
-                              if (isFrom) {
-                                _fromStation = station;
-                              } else {
-                                _toStation = station;
-                              }
-                            });
-                            Navigator.pop(context);
-                          },
-                        );
-                      },
+
+                    // Title
+                    Padding(
+                      padding: const EdgeInsets.all(16),
+                      child: Text(
+                        "Select Station",
+                        style: GoogleFonts.poppins(
+                          fontSize: 18,
+                          fontWeight: FontWeight.w600,
+                          color: primaryColor,
+                        ),
+                      ),
                     ),
-                  ),
-                ],
+
+                    // Empty state
+                    if (sortedStations.isEmpty)
+                      Expanded(
+                        child: Center(
+                          child: Text(
+                            "No stations available",
+                            style: GoogleFonts.poppins(
+                              fontSize: 16,
+                            ),
+                          ),
+                        ),
+                      )
+                    else
+                      // Station list
+                      Expanded(
+                        child: ListView.builder(
+                          padding: const EdgeInsets.only(bottom: 20),
+                          itemCount: sortedStations.length,
+                          itemBuilder: (context, index) {
+                            final station = sortedStations[index];
+
+                            return ListTile(
+                              leading: const Icon(
+                                Icons.train,
+                                color: Colors.black54,
+                              ),
+                              title: Text(
+                                station.name,
+                                style: GoogleFonts.poppins(
+                                  fontSize: 15,
+                                ),
+                              ),
+                              subtitle: Text(
+                                station.city,
+                                style: GoogleFonts.poppins(
+                                  fontSize: 12,
+                                  color: Colors.grey,
+                                ),
+                              ),
+                              onTap: () {
+                                setState(() {
+                                  if (isFrom) {
+                                    _fromStation = station;
+                                  } else {
+                                    _toStation = station;
+                                  }
+                                });
+
+                                Navigator.pop(context);
+                              },
+                            );
+                          },
+                        ),
+                      ),
+                  ],
+                ),
               ),
+            );
+          },
+        );
+      },
+      loading: () {
+        showDialog(
+          context: context,
+          barrierDismissible: false,
+          builder: (_) => const Center(
+            child: CircularProgressIndicator(),
+          ),
+        );
+      },
+      error: (error, stackTrace) {
+        debugPrint("Station Error: $error");
+        debugPrintStack(stackTrace: stackTrace);
+
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: Text(
+              "Failed to load stations: $error",
             ),
-          );
-        },
-      );
-    });
+          ),
+        );
+      },
+    );
   }
 
   void _showSeatsSelector() {

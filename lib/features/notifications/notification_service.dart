@@ -12,10 +12,10 @@ class LocalNotificationHelper {
 
     const DarwinInitializationSettings iosSettings =
         DarwinInitializationSettings(
-          requestAlertPermission: true,
-          requestBadgePermission: true,
-          requestSoundPermission: true,
-        );
+      requestAlertPermission: true,
+      requestBadgePermission: true,
+      requestSoundPermission: true,
+    );
 
     const InitializationSettings initSettings = InitializationSettings(
       android: androidSettings,
@@ -32,8 +32,7 @@ class LocalNotificationHelper {
     // ✅ Explicit permission request for iOS (if needed again)
     await _notificationsPlugin
         .resolvePlatformSpecificImplementation<
-          IOSFlutterLocalNotificationsPlugin
-        >()
+            IOSFlutterLocalNotificationsPlugin>()
         ?.requestPermissions(alert: true, badge: true, sound: true);
   }
 
@@ -42,13 +41,13 @@ class LocalNotificationHelper {
 
     const AndroidNotificationDetails androidDetails =
         AndroidNotificationDetails(
-          'ride_requests_channel',
-          'Ride Requests',
-          channelDescription: 'Notifications for ride request updates',
-          importance: Importance.max,
-          priority: Priority.high,
-          playSound: true,
-        );
+      'ride_requests_channel',
+      'Ride Requests',
+      channelDescription: 'Notifications for ride request updates',
+      importance: Importance.max,
+      priority: Priority.high,
+      playSound: true,
+    );
 
     const DarwinNotificationDetails iosDetails = DarwinNotificationDetails(
       presentAlert: true,

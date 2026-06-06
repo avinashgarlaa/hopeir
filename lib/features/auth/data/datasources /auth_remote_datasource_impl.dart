@@ -2,6 +2,7 @@
 
 import 'dart:convert';
 import 'package:dio/dio.dart';
+import 'package:hop_eir/base_url.dart';
 import 'package:hop_eir/features/auth/data/datasources%20/auth_remote_datasource.dart';
 
 class AuthRemoteDatasourceImpl extends AuthRemoteDatasource {
@@ -31,7 +32,7 @@ class AuthRemoteDatasourceImpl extends AuthRemoteDatasource {
       print("Sending data: $data");
 
       final response = await dio.patch(
-        'https://hopeir.onrender.com/profile/$email/',
+        '$baseURL/profile/$email/',
         data: data,
       );
 
@@ -60,7 +61,7 @@ class AuthRemoteDatasourceImpl extends AuthRemoteDatasource {
       ],
     });
     final response = await dio.post(
-      'https://hopeir.onrender.com/auth/signin',
+      '$baseURL/auth/signin',
       data: body,
       options: Options(
         headers: {'Content-Type': 'application/json'},
@@ -73,7 +74,7 @@ class AuthRemoteDatasourceImpl extends AuthRemoteDatasource {
 
   @override
   Future<void> logout() async {
-    await dio.post('https://hopeir.onrender.com/auth/logout');
+    await dio.post('$baseURL/auth/logout');
   }
 
   @override
@@ -88,7 +89,7 @@ class AuthRemoteDatasourceImpl extends AuthRemoteDatasource {
       ],
     });
     final response = await dio.post(
-      'https://hopeir.onrender.com/auth/signup',
+      '$baseURL/auth/signup',
       data: body,
       options: Options(
         headers: {'Content-Type': 'application/json'},
@@ -103,7 +104,7 @@ class AuthRemoteDatasourceImpl extends AuthRemoteDatasource {
   Future<Map<String, dynamic>?> getProfile({required String email}) async {
     try {
       final response = await dio.get(
-        'https://hopeir.onrender.com/profile/$email',
+        '$baseURL/profile/$email',
       );
 
       // If backend returns an error as JSON with a "detail" key:
@@ -127,7 +128,7 @@ class AuthRemoteDatasourceImpl extends AuthRemoteDatasource {
   }) async {
     try {
       final response = await dio.get(
-        'https://hopeir.onrender.com/profiles/$userId',
+        '$baseURL/profiles/$userId',
       );
 
       // If backend returns an error as JSON with a "detail" key:

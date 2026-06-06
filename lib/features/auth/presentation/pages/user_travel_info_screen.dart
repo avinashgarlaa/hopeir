@@ -1,4 +1,4 @@
-// Keep your imports unchanged...
+// ignore_for_file: avoid_print
 
 import 'dart:convert';
 import 'dart:ui';
@@ -6,6 +6,7 @@ import 'dart:ui';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:google_fonts/google_fonts.dart';
+import 'package:hop_eir/base_url.dart';
 import 'package:hop_eir/features/auth/presentation/providers/auth_provider.dart';
 import 'package:hop_eir/features/stations/data/models/station_model.dart';
 import 'package:hop_eir/features/stations/presentation/providers/providers.dart';
@@ -20,75 +21,217 @@ class CommuteInfoScreen extends ConsumerStatefulWidget {
   ConsumerState<CommuteInfoScreen> createState() => _CommuteInfoScreenState();
 }
 
-class _CommuteInfoScreenState extends ConsumerState<CommuteInfoScreen> {
+class _CommuteInfoScreenState extends ConsumerState<CommuteInfoScreen>
+    with TickerProviderStateMixin {
   int _step = 0;
+
   String? _transportChoice;
   String? _customChoice;
+
   StationModel? _startStation;
   StationModel? _endStation;
+
   TimeOfDay? _travelTime;
+
   final _frequencyController = TextEditingController();
+
   final _formKey = GlobalKey<FormState>();
+
   bool _isLoading = false;
 
-  List<String> transportOptions = [
-    'I drive my own car',
-    'I ride with someone (carpool)',
-    'I use public transport',
-    'I bike or walk',
-    'Other',
+  final Color primaryColor = const Color(0xFF89B162);
+
+  final List<Map<String, Object>> transportOptions = [
+    {
+      "title": "I drive my own car",
+      "icon": Icons.directions_car,
+    },
+    {
+      "title": "I ride with someone",
+      "icon": Icons.groups,
+    },
+    {
+      "title": "I use public transport",
+      "icon": Icons.train,
+    },
+    {
+      "title": "I bike or walk",
+      "icon": Icons.directions_bike,
+    },
+    {
+      "title": "Other",
+      "icon": Icons.more_horiz,
+    },
   ];
 
   void _nextStep() {
-    if (_step < 2) setState(() => _step++);
+    if (_step < 2) {
+      setState(() => _step++);
+    }
   }
 
   void _prevStep() {
-    if (_step > 0) setState(() => _step--);
+    if (_step > 0) {
+      setState(() => _step--);
+    }
   }
 
-  void _pickTime() async {
+  Future<void> _pickTime() async {
     final picked = await showTimePicker(
       context: context,
       initialTime: TimeOfDay.now(),
     );
-    if (picked != null) setState(() => _travelTime = picked);
+
+    if (picked != null) {
+      setState(() => _travelTime = picked);
+    }
   }
 
-  void _selectStation(bool isStart, List<StationModel> stations) {
-    // Create a sorted copy of the stations list (case-insensitive sort)
-    final sortedStations = [...stations]
-      ..sort((a, b) => a.name.toLowerCase().compareTo(b.name.toLowerCase()));
+  void _selectStation(
+    bool isStart,
+    List<StationModel> stations,
+  ) {
+    final sortedStations = [...stations]..sort(
+        (a, b) => a.name.toLowerCase().compareTo(
+              b.name.toLowerCase(),
+            ),
+      );
 
     showModalBottomSheet(
       context: context,
-      backgroundColor: Colors.black87,
-      shape: const RoundedRectangleBorder(
-        borderRadius: BorderRadius.vertical(top: Radius.circular(20)),
-      ),
-      builder: (_) => ListView.builder(
-        itemCount: sortedStations.length,
-        itemBuilder: (_, i) => ListTile(
-          leading: const Icon(Icons.train, color: Colors.white),
-          title: Text(
-            sortedStations[i].name,
-            style: const TextStyle(color: Colors.white),
+      isScrollControlled: true,
+      backgroundColor: Colors.transparent,
+      builder: (_) {
+        return Container(
+          height: MediaQuery.of(context).size.height * 0.82,
+          decoration: const BoxDecoration(
+            color: Colors.white,
+            borderRadius: BorderRadius.vertical(
+              top: Radius.circular(34),
+            ),
           ),
-          onTap: () {
-            setState(() {
-              if (isStart) {
-                _startStation = sortedStations[i];
-              } else {
-                _endStation = sortedStations[i];
-              }
-              if (_startStation != null && _endStation != null) {
-                _nextStep();
-              }
-            });
-            Navigator.pop(context);
-          },
-        ),
-      ),
+          child: Column(
+            children: [
+              const SizedBox(height: 14),
+              Container(
+                width: 70,
+                height: 6,
+                decoration: BoxDecoration(
+                  color: Colors.grey[300],
+                  borderRadius: BorderRadius.circular(
+                    20,
+                  ),
+                ),
+              ),
+              Padding(
+                padding: const EdgeInsets.all(22),
+                child: Row(
+                  children: [
+                    Text(
+                      "Select Station",
+                      style: GoogleFonts.racingSansOne(
+                        fontSize: 32,
+                        color: primaryColor,
+                      ),
+                    ),
+                  ],
+                ),
+              ),
+              Expanded(
+                child: ListView.builder(
+                  physics: const BouncingScrollPhysics(),
+                  itemCount: sortedStations.length,
+                  itemBuilder: (_, i) {
+                    final station = sortedStations[i];
+
+                    return Padding(
+                      padding: const EdgeInsets.symmetric(
+                        horizontal: 18,
+                        vertical: 6,
+                      ),
+                      child: Material(
+                        color: Colors.white,
+                        borderRadius: BorderRadius.circular(
+                          22,
+                        ),
+                        child: InkWell(
+                          borderRadius: BorderRadius.circular(
+                            22,
+                          ),
+                          onTap: () {
+                            setState(() {
+                              if (isStart) {
+                                _startStation = station;
+                              } else {
+                                _endStation = station;
+                              }
+                            });
+
+                            Navigator.pop(
+                              context,
+                            );
+                          },
+                          child: Container(
+                            padding: const EdgeInsets.all(
+                              18,
+                            ),
+                            decoration: BoxDecoration(
+                              borderRadius: BorderRadius.circular(
+                                22,
+                              ),
+                              border: Border.all(
+                                color: Colors.grey.shade200,
+                              ),
+                            ),
+                            child: Row(
+                              children: [
+                                Container(
+                                  padding: const EdgeInsets.all(
+                                    12,
+                                  ),
+                                  decoration: BoxDecoration(
+                                    color: primaryColor.withOpacity(
+                                      0.1,
+                                    ),
+                                    borderRadius: BorderRadius.circular(
+                                      18,
+                                    ),
+                                  ),
+                                  child: Icon(
+                                    Icons.train,
+                                    color: primaryColor,
+                                  ),
+                                ),
+                                const SizedBox(
+                                  width: 16,
+                                ),
+                                Expanded(
+                                  child: Text(
+                                    station.name,
+                                    style: GoogleFonts.poppins(
+                                      fontWeight: FontWeight.w600,
+                                      fontSize: 15,
+                                    ),
+                                  ),
+                                ),
+                                Icon(
+                                  Icons.arrow_forward_ios,
+                                  size: 16,
+                                  color: primaryColor,
+                                ),
+                              ],
+                            ),
+                          ),
+                        ),
+                      ),
+                    );
+                  },
+                ),
+              ),
+            ],
+          ),
+        );
+      },
     );
   }
 
@@ -102,8 +245,11 @@ class _CommuteInfoScreenState extends ConsumerState<CommuteInfoScreen> {
         _travelTime == null ||
         _frequencyController.text.trim().isEmpty) {
       ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(content: Text('Please complete all fields')),
+        const SnackBar(
+          content: Text('Complete all fields'),
+        ),
       );
+
       return;
     }
 
@@ -111,7 +257,15 @@ class _CommuteInfoScreenState extends ConsumerState<CommuteInfoScreen> {
 
     final formattedTime = DateFormat(
       "HH:mm:ss",
-    ).format(DateTime(0, 1, 1, _travelTime!.hour, _travelTime!.minute));
+    ).format(
+      DateTime(
+        0,
+        1,
+        1,
+        _travelTime!.hour,
+        _travelTime!.minute,
+      ),
+    );
 
     final data = {
       "user": userId,
@@ -120,318 +274,524 @@ class _CommuteInfoScreenState extends ConsumerState<CommuteInfoScreen> {
       "preferred_route": "Via NH48",
       "choice": transportFinalChoice,
       "travel_time": formattedTime,
-      "frequency": int.parse(_frequencyController.text.trim()),
+      "frequency": int.parse(
+        _frequencyController.text.trim(),
+      ),
     };
 
     try {
       final res = await http.post(
-        Uri.parse('https://hopeir.onrender.com/model-data/post/'),
-        headers: {"Content-Type": "application/json"},
+        Uri.parse(
+          '$baseURL/model-data/post/',
+        ),
+        headers: {
+          "Content-Type": "application/json",
+        },
         body: jsonEncode(data),
       );
 
       if (res.statusCode == 201 && mounted) {
         Navigator.pushReplacement(
           context,
-          MaterialPageRoute(builder: (_) => const MainScreen()),
+          MaterialPageRoute(
+            builder: (_) => const MainScreen(),
+          ),
         );
       } else {
         throw Exception(res.body);
       }
     } catch (e) {
-      if (mounted) {
-        ScaffoldMessenger.of(
-          context,
-        ).showSnackBar(SnackBar(content: Text("Submission failed: $e")));
-      }
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(
+          content: Text("Submission failed: $e"),
+        ),
+      );
     } finally {
       setState(() => _isLoading = false);
     }
   }
 
-  @override
-  Widget build(BuildContext context) {
-    final user = ref.watch(authNotifierProvider).user;
-    final stationAsync = ref.watch(allStationsProvider);
-
-    if (user == null || stationAsync is AsyncLoading) {
-      return const Scaffold(body: Center(child: CircularProgressIndicator()));
-    }
-
-    final stations = stationAsync.asData!.value;
-    final size = MediaQuery.of(context).size;
-    final height = size.height;
-
-    return GestureDetector(
-      onTap: () => FocusScope.of(context).unfocus(),
-      child: Stack(
-        children: [
-          Container(
-            decoration: const BoxDecoration(
-              gradient: LinearGradient(
-                colors: [Color(0xFF89B162), Color(0xFFF5F7FF)],
-                begin: Alignment.topLeft,
-                end: Alignment.bottomRight,
+  Widget _stepIndicator() {
+    return Row(
+      children: List.generate(
+        3,
+        (index) => Expanded(
+          child: AnimatedContainer(
+            duration: const Duration(
+              milliseconds: 350,
+            ),
+            margin: const EdgeInsets.symmetric(
+              horizontal: 5,
+            ),
+            height: 8,
+            decoration: BoxDecoration(
+              color: index <= _step ? Colors.white : Colors.white24,
+              borderRadius: BorderRadius.circular(
+                30,
               ),
             ),
           ),
-          Scaffold(
-            backgroundColor: Colors.transparent,
-            body: SafeArea(
-              child: Center(
-                child: SingleChildScrollView(
-                  padding: EdgeInsets.symmetric(horizontal: size.width * 0.08),
-                  child: ClipRRect(
-                    borderRadius: BorderRadius.circular(30),
-                    child: BackdropFilter(
-                      filter: ImageFilter.blur(sigmaX: 25, sigmaY: 25),
-                      child: Container(
-                        padding: const EdgeInsets.all(28),
-                        decoration: BoxDecoration(
-                          color: Colors.white.withOpacity(0.18),
-                          borderRadius: BorderRadius.circular(30),
-                          border: Border.all(
-                            color: Colors.white.withOpacity(0.3),
-                          ),
-                          boxShadow: [
-                            BoxShadow(
-                              color: Colors.black.withOpacity(0.15),
-                              blurRadius: 35,
-                              offset: const Offset(0, 15),
-                            ),
-                          ],
-                        ),
-                        child: Column(
-                          children: [
-                            Text(
-                              "Your Daily Commute",
-                              style: GoogleFonts.racingSansOne(
-                                fontSize: height * 0.04,
-                                color: Colors.white,
-                                fontWeight: FontWeight.bold,
-                              ),
-                            ),
-                            const SizedBox(height: 10),
-                            Theme(
-                              data: Theme.of(context).copyWith(
-                                colorScheme: ColorScheme.light(
-                                  primary: const Color(0xFF89B162),
-                                  onSurface: Colors.white,
-                                ),
-                              ),
-                              child: Stepper(
-                                currentStep: _step,
-                                onStepContinue: _step < 2 ? _nextStep : null,
-                                onStepCancel: _prevStep,
-                                controlsBuilder: (_, __) => const SizedBox(),
-                                type: StepperType.vertical,
-                                steps: [
-                                  Step(
-                                    title: Text(
-                                      "1. How do you travel?",
-                                      style: GoogleFonts.poppins(
-                                        fontSize: 16,
-                                        color: Colors.black45,
-                                      ),
-                                    ),
-                                    isActive: _step >= 0,
-                                    content: Column(
-                                      children: [
-                                        ...transportOptions.map(
-                                          (opt) => RadioListTile<String>(
-                                            value: opt,
-                                            groupValue: _transportChoice,
-                                            onChanged: (val) {
-                                              setState(() {
-                                                _transportChoice = val;
-                                                if (val != 'Other') {
-                                                  _customChoice = null;
-                                                  _nextStep();
-                                                }
-                                              });
-                                            },
-                                            title: Text(
-                                              opt,
-                                              style: const TextStyle(
-                                                color: Colors.black45,
-                                              ),
-                                            ),
-                                          ),
-                                        ),
-                                        if (_transportChoice == 'Other')
-                                          TextFormField(
-                                            style: const TextStyle(
-                                              color: Colors.black45,
-                                            ),
-                                            decoration: const InputDecoration(
-                                              hintText: "Please specify",
-                                              hintStyle: TextStyle(
-                                                color: Colors.white54,
-                                              ),
-                                            ),
-                                            onChanged: (val) =>
-                                                _customChoice = val.trim(),
-                                          ),
-                                      ],
-                                    ),
-                                  ),
-                                  Step(
-                                    title: Text(
-                                      "2. What's the route?",
-                                      style: GoogleFonts.poppins(
-                                        fontSize: 16,
-                                        color: Colors.black45,
-                                      ),
-                                    ),
-                                    isActive: _step >= 1,
-                                    content: Column(
-                                      crossAxisAlignment:
-                                          CrossAxisAlignment.start,
-                                      children: [
-                                        TextButton.icon(
-                                          icon: const Icon(
-                                            Icons.train,
-                                            color: Colors.white,
-                                          ),
-                                          label: Text(
-                                            _startStation?.name ??
-                                                "Choose Starting Point",
-                                            style: const TextStyle(
-                                              color: Colors.black45,
-                                            ),
-                                          ),
-                                          onPressed: () => _selectStation(
-                                            true,
-                                            stations,
-                                          ),
-                                        ),
-                                        TextButton.icon(
-                                          icon: const Icon(
-                                            Icons.location_on,
-                                            color: Colors.white,
-                                          ),
-                                          label: Text(
-                                            _endStation?.name ??
-                                                "Choose Destination",
-                                            style: const TextStyle(
-                                              color: Colors.black45,
-                                            ),
-                                          ),
-                                          onPressed: () => _selectStation(
-                                            false,
-                                            stations,
-                                          ),
-                                        ),
-                                      ],
-                                    ),
-                                  ),
-                                  Step(
-                                    title: Text(
-                                      "3. Your Schedule",
-                                      style: GoogleFonts.poppins(
-                                        fontSize: 16,
-                                        color: Colors.black45,
-                                      ),
-                                    ),
-                                    isActive: _step >= 2,
-                                    content: Form(
-                                      key: _formKey,
-                                      child: Column(
-                                        children: [
-                                          TextButton.icon(
-                                            icon: const Icon(
-                                              Icons.access_time,
-                                              color: Colors.black45,
-                                            ),
-                                            label: Text(
-                                              _travelTime == null
-                                                  ? "Pick Travel Time"
-                                                  : _travelTime!.format(
-                                                      context,
-                                                    ),
-                                              style: const TextStyle(
-                                                color: Colors.black45,
-                                              ),
-                                            ),
-                                            onPressed: _pickTime,
-                                          ),
-                                          const SizedBox(height: 12),
-                                          TextFormField(
-                                            controller: _frequencyController,
-                                            keyboardType: TextInputType.number,
-                                            style: const TextStyle(
-                                              color: Colors.white,
-                                            ),
-                                            decoration: const InputDecoration(
-                                              labelText: "Times per week",
-                                              labelStyle: TextStyle(
-                                                color: Colors.black45,
-                                              ),
-                                              prefixIcon: Icon(
-                                                Icons.repeat,
-                                                color: Colors.black45,
-                                              ),
-                                              enabledBorder:
-                                                  UnderlineInputBorder(
-                                                borderSide: BorderSide(
-                                                  color: Colors.white,
-                                                ),
-                                              ),
-                                            ),
-                                            validator: (val) {
-                                              if (val == null || val.isEmpty) {
-                                                return 'Please enter frequency';
-                                              }
-                                              return null;
-                                            },
-                                          ),
-                                          const SizedBox(height: 20),
-                                          ElevatedButton(
-                                            onPressed: _isLoading
-                                                ? null
-                                                : () {
-                                                    if (_formKey.currentState!
-                                                        .validate()) {
-                                                      _submit(user.userId);
-                                                    }
-                                                  },
-                                            style: ElevatedButton.styleFrom(
-                                              backgroundColor: const Color(
-                                                0xFF89B162,
-                                              ),
-                                              foregroundColor: Colors.white,
-                                              padding:
-                                                  const EdgeInsets.symmetric(
-                                                horizontal: 40,
-                                                vertical: 14,
-                                              ),
-                                            ),
-                                            child: Text(
-                                              _isLoading
-                                                  ? "Submitting..."
-                                                  : "Submit",
-                                              style: const TextStyle(
-                                                fontSize: 18,
-                                              ),
-                                            ),
-                                          ),
-                                        ],
-                                      ),
-                                    ),
-                                  ),
-                                ],
-                              ),
-                            ),
-                          ],
-                        ),
-                      ),
-                    ),
-                  ),
+        ),
+      ),
+    );
+  }
+
+  Widget _glassContainer({
+    required Widget child,
+  }) {
+    return ClipRRect(
+      borderRadius: BorderRadius.circular(34),
+      child: BackdropFilter(
+        filter: ImageFilter.blur(
+          sigmaX: 20,
+          sigmaY: 20,
+        ),
+        child: Container(
+          width: double.infinity,
+          padding: const EdgeInsets.all(
+            26,
+          ),
+          decoration: BoxDecoration(
+            borderRadius: BorderRadius.circular(34),
+            color: Colors.white.withOpacity(
+              0.12,
+            ),
+            border: Border.all(
+              color: Colors.white.withOpacity(
+                0.2,
+              ),
+            ),
+          ),
+          child: child,
+        ),
+      ),
+    );
+  }
+
+  Widget _selectionTile({
+    required String title,
+    required IconData icon,
+    required bool selected,
+    required VoidCallback onTap,
+  }) {
+    return GestureDetector(
+      onTap: onTap,
+      child: AnimatedContainer(
+        duration: const Duration(
+          milliseconds: 250,
+        ),
+        margin: const EdgeInsets.only(bottom: 14),
+        padding: const EdgeInsets.all(18),
+        decoration: BoxDecoration(
+          color: selected
+              ? Colors.white
+              : Colors.white.withOpacity(
+                  0.08,
+                ),
+          borderRadius: BorderRadius.circular(24),
+          border: Border.all(
+            color: selected ? Colors.white : Colors.white12,
+          ),
+        ),
+        child: Row(
+          children: [
+            Container(
+              padding: const EdgeInsets.all(12),
+              decoration: BoxDecoration(
+                color:
+                    selected ? primaryColor.withOpacity(0.1) : Colors.white12,
+                borderRadius: BorderRadius.circular(
+                  16,
+                ),
+              ),
+              child: Icon(
+                icon,
+                color: selected ? primaryColor : Colors.white,
+              ),
+            ),
+            const SizedBox(width: 16),
+            Expanded(
+              child: Text(
+                title,
+                style: GoogleFonts.poppins(
+                  color: selected ? Colors.black87 : Colors.white,
+                  fontWeight: FontWeight.w600,
+                  fontSize: 15,
                 ),
               ),
             ),
+            if (selected)
+              Icon(
+                Icons.check_circle,
+                color: primaryColor,
+              ),
+          ],
+        ),
+      ),
+    );
+  }
+
+  Widget _routeSelector({
+    required String title,
+    required IconData icon,
+    required VoidCallback onTap,
+  }) {
+    return GestureDetector(
+      onTap: onTap,
+      child: Container(
+        padding: const EdgeInsets.symmetric(
+          horizontal: 18,
+          vertical: 18,
+        ),
+        margin: const EdgeInsets.only(bottom: 18),
+        decoration: BoxDecoration(
+          color: Colors.white.withOpacity(
+            0.08,
           ),
-        ],
+          borderRadius: BorderRadius.circular(24),
+          border: Border.all(
+            color: Colors.white12,
+          ),
+        ),
+        child: Row(
+          children: [
+            Container(
+              padding: const EdgeInsets.all(12),
+              decoration: BoxDecoration(
+                color: Colors.white12,
+                borderRadius: BorderRadius.circular(
+                  16,
+                ),
+              ),
+              child: Icon(
+                icon,
+                color: Colors.white,
+              ),
+            ),
+            const SizedBox(width: 16),
+            Expanded(
+              child: Text(
+                title,
+                style: GoogleFonts.poppins(
+                  color: Colors.white,
+                  fontWeight: FontWeight.w600,
+                ),
+              ),
+            ),
+            const Icon(
+              Icons.arrow_forward_ios,
+              size: 18,
+              color: Colors.white,
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final user = ref.watch(authNotifierProvider).user;
+
+    final stationAsync = ref.watch(allStationsProvider);
+
+    if (user == null || stationAsync is AsyncLoading) {
+      return const Scaffold(
+        body: Center(
+          child: CircularProgressIndicator(),
+        ),
+      );
+    }
+
+    final stations = stationAsync.asData!.value;
+
+    return Scaffold(
+      extendBodyBehindAppBar: true,
+      body: Container(
+        width: double.infinity,
+        height: double.infinity,
+        decoration: const BoxDecoration(
+          gradient: LinearGradient(
+            begin: Alignment.topLeft,
+            end: Alignment.bottomRight,
+            colors: [
+              Color(0xFF7EA45A),
+              Color(0xFF89B162),
+              Color(0xFFB7D49B),
+            ],
+          ),
+        ),
+        child: SafeArea(
+          child: SizedBox(
+            height: MediaQuery.of(context).size.height,
+            child: SingleChildScrollView(
+              physics: const BouncingScrollPhysics(),
+              padding: const EdgeInsets.symmetric(
+                horizontal: 22,
+                vertical: 18,
+              ),
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Text(
+                    "Daily\nCommute",
+                    style: GoogleFonts.racingSansOne(
+                      fontSize: 54,
+                      color: Colors.white,
+                      height: 0.95,
+                    ),
+                  ),
+                  const SizedBox(height: 10),
+                  Text(
+                    "Let’s personalize your travel experience",
+                    style: GoogleFonts.poppins(
+                      color: Colors.white70,
+                      fontSize: 15,
+                    ),
+                  ),
+                  const SizedBox(height: 28),
+                  _stepIndicator(),
+                  const SizedBox(height: 32),
+                  AnimatedSwitcher(
+                    duration: const Duration(
+                      milliseconds: 350,
+                    ),
+                    child: _step == 0
+                        ? _glassContainer(
+                            child: Column(
+                              crossAxisAlignment: CrossAxisAlignment.start,
+                              children: [
+                                Text(
+                                  "How do you usually travel?",
+                                  style: GoogleFonts.poppins(
+                                    color: Colors.white,
+                                    fontWeight: FontWeight.bold,
+                                    fontSize: 24,
+                                  ),
+                                ),
+                                const SizedBox(
+                                  height: 24,
+                                ),
+                                ...transportOptions.map(
+                                  (option) {
+                                    final title = option["title"] as String;
+
+                                    final icon = option["icon"] as IconData;
+
+                                    return _selectionTile(
+                                      title: title,
+                                      icon: icon,
+                                      selected: _transportChoice == title,
+                                      onTap: () {
+                                        setState(
+                                          () {
+                                            _transportChoice = title;
+                                          },
+                                        );
+
+                                        if (title != "Other") {
+                                          Future.delayed(
+                                            const Duration(
+                                              milliseconds: 200,
+                                            ),
+                                            _nextStep,
+                                          );
+                                        }
+                                      },
+                                    );
+                                  },
+                                ),
+                                if (_transportChoice == "Other")
+                                  TextField(
+                                    onChanged: (v) => _customChoice = v,
+                                    decoration: InputDecoration(
+                                      filled: true,
+                                      fillColor: Colors.white,
+                                      hintText: "Specify your transport...",
+                                      border: OutlineInputBorder(
+                                        borderRadius: BorderRadius.circular(
+                                          20,
+                                        ),
+                                        borderSide: BorderSide.none,
+                                      ),
+                                    ),
+                                  ),
+                              ],
+                            ),
+                          )
+                        : _step == 1
+                            ? _glassContainer(
+                                child: Column(
+                                  crossAxisAlignment: CrossAxisAlignment.start,
+                                  children: [
+                                    Text(
+                                      "Select Route",
+                                      style: GoogleFonts.poppins(
+                                        color: Colors.white,
+                                        fontWeight: FontWeight.bold,
+                                        fontSize: 24,
+                                      ),
+                                    ),
+                                    const SizedBox(
+                                      height: 24,
+                                    ),
+                                    _routeSelector(
+                                      title: _startStation?.name ??
+                                          "Choose Starting Station",
+                                      icon: Icons.train,
+                                      onTap: () => _selectStation(
+                                        true,
+                                        stations,
+                                      ),
+                                    ),
+                                    _routeSelector(
+                                      title: _endStation?.name ??
+                                          "Choose Destination",
+                                      icon: Icons.location_on,
+                                      onTap: () => _selectStation(
+                                        false,
+                                        stations,
+                                      ),
+                                    ),
+                                    const SizedBox(
+                                      height: 10,
+                                    ),
+                                    SizedBox(
+                                      width: double.infinity,
+                                      height: 58,
+                                      child: ElevatedButton(
+                                        onPressed: _startStation != null &&
+                                                _endStation != null
+                                            ? _nextStep
+                                            : null,
+                                        style: ElevatedButton.styleFrom(
+                                          backgroundColor: Colors.white,
+                                          foregroundColor: primaryColor,
+                                          shape: RoundedRectangleBorder(
+                                            borderRadius: BorderRadius.circular(
+                                              22,
+                                            ),
+                                          ),
+                                        ),
+                                        child: Text(
+                                          "Continue",
+                                          style: GoogleFonts.poppins(
+                                            fontWeight: FontWeight.bold,
+                                            fontSize: 16,
+                                          ),
+                                        ),
+                                      ),
+                                    ),
+                                  ],
+                                ),
+                              )
+                            : _glassContainer(
+                                child: Form(
+                                  key: _formKey,
+                                  child: Column(
+                                    crossAxisAlignment:
+                                        CrossAxisAlignment.start,
+                                    children: [
+                                      Text(
+                                        "Travel Schedule",
+                                        style: GoogleFonts.poppins(
+                                          color: Colors.white,
+                                          fontWeight: FontWeight.bold,
+                                          fontSize: 24,
+                                        ),
+                                      ),
+                                      const SizedBox(
+                                        height: 24,
+                                      ),
+                                      _routeSelector(
+                                        title: _travelTime == null
+                                            ? "Select Preferred Time"
+                                            : _travelTime!.format(
+                                                context,
+                                              ),
+                                        icon: Icons.access_time,
+                                        onTap: _pickTime,
+                                      ),
+                                      TextFormField(
+                                        controller: _frequencyController,
+                                        keyboardType: TextInputType.number,
+                                        style: GoogleFonts.poppins(),
+                                        decoration: InputDecoration(
+                                          filled: true,
+                                          fillColor: Colors.white,
+                                          hintText: "Trips per week",
+                                          prefixIcon: const Icon(
+                                            Icons.repeat,
+                                          ),
+                                          border: OutlineInputBorder(
+                                            borderRadius: BorderRadius.circular(
+                                              22,
+                                            ),
+                                            borderSide: BorderSide.none,
+                                          ),
+                                        ),
+                                      ),
+                                      const SizedBox(
+                                        height: 28,
+                                      ),
+                                      SizedBox(
+                                        width: double.infinity,
+                                        height: 60,
+                                        child: ElevatedButton(
+                                          onPressed: _isLoading
+                                              ? null
+                                              : () {
+                                                  _submit(
+                                                    user.userId,
+                                                  );
+                                                },
+                                          style: ElevatedButton.styleFrom(
+                                            backgroundColor: Colors.white,
+                                            foregroundColor: primaryColor,
+                                            elevation: 0,
+                                            shape: RoundedRectangleBorder(
+                                              borderRadius:
+                                                  BorderRadius.circular(
+                                                24,
+                                              ),
+                                            ),
+                                          ),
+                                          child: _isLoading
+                                              ? const CircularProgressIndicator()
+                                              : Text(
+                                                  "Complete Setup",
+                                                  style: GoogleFonts.poppins(
+                                                    fontWeight: FontWeight.bold,
+                                                    fontSize: 17,
+                                                  ),
+                                                ),
+                                        ),
+                                      ),
+                                    ],
+                                  ),
+                                ),
+                              ),
+                  ),
+                  const SizedBox(height: 30),
+                  if (_step > 0)
+                    Center(
+                      child: TextButton(
+                        onPressed: _prevStep,
+                        child: Text(
+                          "Back",
+                          style: GoogleFonts.poppins(
+                            color: Colors.white,
+                            fontWeight: FontWeight.w600,
+                          ),
+                        ),
+                      ),
+                    ),
+                  const SizedBox(height: 40),
+                ],
+              ),
+            ),
+          ),
+        ),
       ),
     );
   }

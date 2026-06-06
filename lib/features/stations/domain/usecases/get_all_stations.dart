@@ -6,9 +6,9 @@ class GetAllStationsUseCase {
 
   GetAllStationsUseCase(this.apiService);
   // before map integration
-  // Future<List<StationModel>> call() => apiService.fetchAllStations();
+  Future<List<StationModel>> call() => apiService.fetchAllStations();
   // added for map integration
-  Future<List<StationModel>> call() =>
-      apiService.fetchStationsWithValidLocation();
+  // Future<List<StationModel>> call() =>
+  //     apiService.fetchStationsWithValidLocation();
   // upto here
 }

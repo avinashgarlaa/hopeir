@@ -1,4 +1,5 @@
 import 'package:dio/dio.dart';
+import 'package:hop_eir/base_url.dart';
 import 'package:hop_eir/features/requests/data/models/ride_request_model.dart';
 import 'request_remote_datasource.dart';
 
@@ -10,7 +11,7 @@ class RequestRemoteDataSourceImpl implements RequestRemoteDataSource {
   @override
   Future<List<RideRequestModel>> fetchRequestsForRide(int rideId) async {
     final response = await dio.get(
-      'https://hopeir.onrender.com/rides/request/get/?ride_id=$rideId',
+      '$baseURL/rides/request/get/?ride_id=$rideId',
     );
 
     final data = response.data as List;
@@ -20,7 +21,7 @@ class RequestRemoteDataSourceImpl implements RequestRemoteDataSource {
   @override
   Future<List<RideRequestModel>> fetchRequestsByUser(String userId) async {
     final response = await dio.get(
-      'https://hopeir.onrender.com/rides/request/get/?user_id=6f3d5d27-acb6-4e84-a817-b276ad69a390',
+      '$baseURL/rides/request/get/$userId',
     );
 
     final data = response.data as List;
@@ -34,7 +35,7 @@ class RequestRemoteDataSourceImpl implements RequestRemoteDataSource {
     required String userId,
   }) async {
     final response = await dio.put(
-      'https://hopeir.onrender.com/rides/request/$requestId/respond/',
+      '$baseURL/rides/request/$requestId/respond/',
       data: {"request_status": action, "user_id": userId},
     );
 

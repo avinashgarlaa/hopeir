@@ -1,276 +1,545 @@
+// ============================================================
+// 🔥 RECEIVED REQUESTS PAGE - ULTRA PRO UI
+// ============================================================
+//
+// ADD:
+//
+// flutter_animate:
+// timeago:
+//
+// ============================================================
+
 import 'package:flutter/material.dart';
+import 'package:flutter_animate/flutter_animate.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:google_fonts/google_fonts.dart';
 import 'package:intl/intl.dart';
+import 'package:timeago/timeago.dart' as timeago;
 
 import 'package:hop_eir/features/auth/presentation/providers/auth_provider.dart';
 import 'package:hop_eir/features/requests/domain/entities/ride_request.dart';
 import 'package:hop_eir/features/requests/presentation/controllers/ride_request_ws_controller.dart';
 import 'package:hop_eir/features/rides/presentation/controllers/ride_ws_controller.dart';
+import 'package:hop_eir/features/rides/presentation/pages/ride_chat_page.dart';
 import 'package:hop_eir/features/rides/presentation/providers/ride_provider.dart';
 import 'package:hop_eir/features/stations/presentation/providers/providers.dart';
 
-// 🔁 Replace with your actual chat page
-import 'package:hop_eir/features/rides/presentation/pages/ride_chat_page.dart';
-
 class ReceivedRequestsPage extends ConsumerWidget {
-  static const primaryColor = Color.fromRGBO(137, 177, 98, 1);
+  const ReceivedRequestsPage({
+    super.key,
+  });
 
-  const ReceivedRequestsPage({super.key});
+  static const primaryColor = Color(0xFF89B162);
 
   @override
-  Widget build(BuildContext context, WidgetRef ref) {
-    final user = ref.watch(authNotifierProvider).user;
-    final userId = user?.userId ?? '';
+  Widget build(
+    BuildContext context,
+    WidgetRef ref,
+  ) {
+    final user = ref
+        .watch(
+          authNotifierProvider,
+        )
+        .user;
 
-    final wsState = ref.watch(
-      rideRequestWSControllerProvider(userId),
+    final userId = user?.userId.toString() ?? '';
+
+    final state = ref.watch(
+      rideRequestWSControllerProvider(
+        userId,
+      ),
     );
 
-    final receivedRequests = wsState.incomingRequests
-        .where((r) => r.driverId == userId) // ✅ correct filter
+    final requests = state.incomingRequests
+        .where(
+          (r) => r.driverId == userId,
+        )
         .toList()
       ..sort((a, b) {
-        final timeA = DateTime.tryParse(a.requestedAt ?? '') ?? DateTime.now();
-        final timeB = DateTime.tryParse(b.requestedAt ?? '') ?? DateTime.now();
-        return timeB.compareTo(timeA);
+        final aTime = DateTime.tryParse(
+              a.requestedAt ?? '',
+            ) ??
+            DateTime.now();
+
+        final bTime = DateTime.tryParse(
+              b.requestedAt ?? '',
+            ) ??
+            DateTime.now();
+
+        return bTime.compareTo(
+          aTime,
+        );
       });
 
-    if (receivedRequests.isEmpty) {
-      return Center(
-        child: Text(
-          "No incoming ride requests yet.",
-          style: GoogleFonts.poppins(
-            fontSize: 16,
-            color: primaryColor,
-          ),
-        ),
-      );
+    if (requests.isEmpty) {
+      return const _EmptyState();
     }
 
     return ListView.builder(
-      padding: const EdgeInsets.only(bottom: 40),
-      itemCount: receivedRequests.length,
-      itemBuilder: (context, index) {
-        final request = receivedRequests[index];
+      physics: const BouncingScrollPhysics(),
+      padding: const EdgeInsets.fromLTRB(
+        16,
+        16,
+        16,
+        120,
+      ),
+      itemCount: requests.length,
+      itemBuilder: (
+        context,
+        index,
+      ) {
+        final request = requests[index];
 
-        return _RideRequestCard(
-          request: request,
-          userId: userId,
-          ref: ref,
-          onAction: (status) async {
-            final notifier = ref.read(
-              rideRequestWSControllerProvider(userId).notifier,
-            );
-
-            await notifier.respondToRequest(
-              requestId: request.id,
-              isAccepted: status == 'accepted',
-            );
-          },
+        return Padding(
+          padding: const EdgeInsets.only(
+            bottom: 14,
+          ),
+          child: _ReceivedRideCard(
+            request: request,
+          )
+              .animate()
+              .fadeIn(
+                duration: 450.ms,
+              )
+              .slideY(
+                begin: 0.08,
+                end: 0,
+              ),
         );
       },
     );
   }
 }
 
-class _RideRequestCard extends StatelessWidget {
-  final RideRequest request;
-  final void Function(String status) onAction;
-  final String userId;
-  final WidgetRef ref;
+// ============================================================
+// CARD
+// ============================================================
 
-  const _RideRequestCard({
+class _ReceivedRideCard extends ConsumerWidget {
+  final RideRequest request;
+
+  const _ReceivedRideCard({
     required this.request,
-    required this.onAction,
-    required this.userId,
-    required this.ref,
   });
 
-  final LinearGradient gradient = const LinearGradient(
-    colors: [Color(0xFF7F7FD5), Color(0xFF86A8E7)],
-    begin: Alignment.topLeft,
-    end: Alignment.bottomRight,
-  );
+  static const primaryColor = Color(0xFF89B162);
 
   @override
-  Widget build(BuildContext context) {
-    // 🔥 Connect Ride WS ONLY after accepted
-    if (request.status.toLowerCase() == 'accepted') {
+  Widget build(
+    BuildContext context,
+    WidgetRef ref,
+  ) {
+    if (request.status.toLowerCase() == "accepted") {
       ref.watch(
-        rideWSControllerProvider(request.rideId),
+        rideWSControllerProvider(
+          request.rideId,
+        ),
       );
     }
 
-    final requestedTime = DateTime.tryParse(request.requestedAt ?? '');
-    final formattedTime = requestedTime != null
-        ? DateFormat.yMMMd().add_jm().format(requestedTime)
-        : 'Unknown';
+    final requestTime = DateTime.tryParse(
+      request.requestedAt ?? '',
+    )?.toLocal();
 
-    final passengerAsync = request.passengerId.isEmpty
-        ? const AsyncValue.loading()
-        : ref.watch(
-            getUserByIdProviders(request.passengerId),
-          );
+    final requestAgo = requestTime != null
+        ? timeago.format(
+            requestTime,
+          )
+        : '';
+
+    final passengerAsync = ref.watch(
+      getUserByIdProviders(
+        request.passengerId,
+      ),
+    );
 
     final rideAsync = ref.watch(
-      rideByIdProvider(request.rideId),
+      rideByIdProvider(
+        request.rideId,
+      ),
     );
 
     return Container(
-      margin: const EdgeInsets.symmetric(horizontal: 20, vertical: 14),
-      padding: const EdgeInsets.all(18),
+      padding: const EdgeInsets.all(
+        16,
+      ),
       decoration: BoxDecoration(
-        color: const Color(0xFFF9FAFB),
-        borderRadius: BorderRadius.circular(18),
-        boxShadow: const [
+        color: Colors.white,
+        borderRadius: BorderRadius.circular(
+          24,
+        ),
+        boxShadow: [
           BoxShadow(
-            color: Colors.black12,
-            blurRadius: 12,
-            offset: Offset(0, 4),
+            color: Colors.black.withOpacity(
+              0.04,
+            ),
+            blurRadius: 20,
+            offset: const Offset(
+              0,
+              8,
+            ),
           ),
         ],
       ),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          /// 👤 Passenger Header
+          // ==================================================
+          // TOP
+          // ==================================================
+
           Row(
             children: [
-              const CircleAvatar(
-                radius: 22,
-                backgroundColor: Color(0xFFD1E8FF),
-                child: Icon(Icons.person, color: Color(0xFF3366CC)),
-              ),
-              const SizedBox(width: 12),
-              Expanded(
-                child: ShaderMask(
-                  shaderCallback: (bounds) => gradient.createShader(
-                    Rect.fromLTWH(0, 0, bounds.width, bounds.height),
+              Container(
+                width: 54,
+                height: 54,
+                decoration: BoxDecoration(
+                  gradient: const LinearGradient(
+                    colors: [
+                      Color(
+                        0xFF89B162,
+                      ),
+                      Color(
+                        0xFFAED581,
+                      ),
+                    ],
                   ),
-                  child: Text(
-                    request.passengerName,
-                    style: GoogleFonts.poppins(
-                      fontSize: 16,
-                      fontWeight: FontWeight.w600,
-                      color: Colors.white,
-                    ),
+                  borderRadius: BorderRadius.circular(
+                    18,
                   ),
                 ),
+                child: const Icon(
+                  Icons.person_rounded,
+                  color: Colors.white,
+                ),
               ),
-              _statusChip(request.status),
+              const SizedBox(
+                width: 14,
+              ),
+              Expanded(
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Text(
+                      request.passengerName,
+                      style: GoogleFonts.poppins(
+                        fontWeight: FontWeight.w700,
+                        fontSize: 16,
+                      ),
+                    ),
+                    const SizedBox(
+                      height: 3,
+                    ),
+                    Text(
+                      "Requested $requestAgo",
+                      style: GoogleFonts.poppins(
+                        fontSize: 12,
+                        color: Colors.grey,
+                      ),
+                    ),
+                  ],
+                ),
+              ),
+              _statusChip(
+                request.status,
+              ),
             ],
           ),
 
-          const SizedBox(height: 12),
-
-          /// 👥 Passenger Details
-          passengerAsync.when(
-            data: (passenger) => Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                _infoRow(
-                  Icons.email_outlined,
-                  passenger?.email ?? 'Email unavailable',
-                ),
-                _infoRow(
-                  Icons.phone_android_rounded,
-                  passenger?.username ?? 'Username unavailable',
-                ),
-              ],
-            ),
-            loading: () => const LinearProgressIndicator(minHeight: 2),
-            error: (_, __) => _infoRow(Icons.error, 'Failed to load user info'),
+          const SizedBox(
+            height: 18,
           ),
 
-          const SizedBox(height: 12),
+          // ==================================================
+          // PASSENGER INFO
+          // ==================================================
 
-          /// 🚘 Ride Details
+          passengerAsync.when(
+            data: (
+              passenger,
+            ) {
+              return Container(
+                padding: const EdgeInsets.all(
+                  14,
+                ),
+                decoration: BoxDecoration(
+                  color: const Color(
+                    0xFFF8FBF4,
+                  ),
+                  borderRadius: BorderRadius.circular(
+                    20,
+                  ),
+                ),
+                child: Column(
+                  children: [
+                    _infoRow(
+                      Icons.email_outlined,
+                      passenger?.email ?? "Unavailable",
+                    ),
+                    const SizedBox(
+                      height: 12,
+                    ),
+                    _infoRow(
+                      Icons.phone_android_rounded,
+                      passenger?.username ?? "Unavailable",
+                    ),
+                  ],
+                ),
+              );
+            },
+            loading: () => const SizedBox(),
+            error: (
+              _,
+              __,
+            ) =>
+                const SizedBox(),
+          ),
+
+          const SizedBox(
+            height: 16,
+          ),
+
+          // ==================================================
+          // RIDE DETAILS
+          // ==================================================
+
           rideAsync.when(
             data: (ride) {
-              final fromStationAsync = ref.watch(
-                stationByIdProvider(ride.startLocation),
-              );
-              final toStationAsync = ref.watch(
-                stationByIdProvider(ride.endLocation),
+              final fromAsync = ref.watch(
+                stationByIdProvider(
+                  ride.startLocation,
+                ),
               );
 
-              final startTime = DateTime.tryParse(ride.startTime.toString());
+              final toAsync = ref.watch(
+                stationByIdProvider(
+                  ride.endLocation,
+                ),
+              );
 
-              final formattedStartTime = startTime != null
-                  ? DateFormat.yMMMd().add_jm().format(startTime)
-                  : 'Unknown';
+              final startTime = DateTime.tryParse(
+                ride.startTime.toString(),
+              )?.toLocal();
+
+              final rideTime = startTime != null
+                  ? DateFormat(
+                      'hh:mm a',
+                    ).format(
+                      startTime,
+                    )
+                  : '';
+
+              final rideDate = startTime != null
+                  ? DateFormat(
+                      'MMM dd',
+                    ).format(
+                      startTime,
+                    )
+                  : '';
 
               return Column(
-                crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
-                  fromStationAsync.when(
-                    data: (from) => toStationAsync.when(
-                      data: (to) => _infoRow(
-                        Icons.route_outlined,
-                        '${from.name} → ${to.name}',
-                      ),
-                      loading: () =>
-                          _infoRow(Icons.route, 'Loading destination...'),
-                      error: (_, __) =>
-                          _infoRow(Icons.route, 'Destination unavailable'),
-                    ),
-                    loading: () => _infoRow(Icons.route, 'Loading origin...'),
-                    error: (_, __) =>
-                        _infoRow(Icons.route, 'Origin unavailable'),
+                  fromAsync.when(
+                    data: (
+                      from,
+                    ) {
+                      return toAsync.when(
+                        data: (
+                          to,
+                        ) {
+                          return Container(
+                            padding: const EdgeInsets.all(
+                              14,
+                            ),
+                            decoration: BoxDecoration(
+                              color: Colors.grey.shade50,
+                              borderRadius: BorderRadius.circular(
+                                20,
+                              ),
+                            ),
+                            child: Column(
+                              children: [
+                                _routeRow(
+                                  Icons.my_location_rounded,
+                                  from.name,
+                                  Colors.green,
+                                ),
+                                Padding(
+                                  padding: const EdgeInsets.symmetric(
+                                    vertical: 8,
+                                  ),
+                                  child: Divider(
+                                    color: Colors.grey.withOpacity(
+                                      0.2,
+                                    ),
+                                  ),
+                                ),
+                                _routeRow(
+                                  Icons.location_on_rounded,
+                                  to.name,
+                                  Colors.redAccent,
+                                ),
+                              ],
+                            ),
+                          );
+                        },
+                        loading: () => const SizedBox(),
+                        error: (
+                          _,
+                          __,
+                        ) =>
+                            const SizedBox(),
+                      );
+                    },
+                    loading: () => const SizedBox(),
+                    error: (
+                      _,
+                      __,
+                    ) =>
+                        const SizedBox(),
                   ),
-                  const SizedBox(height: 4),
-                  _infoRow(
-                    Icons.schedule_rounded,
-                    "Start Time: $formattedStartTime",
+
+                  const SizedBox(
+                    height: 14,
+                  ),
+
+                  // ==========================================
+                  // START TIME
+                  // ==========================================
+
+                  Container(
+                    padding: const EdgeInsets.all(
+                      12,
+                    ),
+                    decoration: BoxDecoration(
+                      color: primaryColor.withOpacity(
+                        0.08,
+                      ),
+                      borderRadius: BorderRadius.circular(
+                        18,
+                      ),
+                    ),
+                    child: Row(
+                      children: [
+                        Container(
+                          width: 42,
+                          height: 42,
+                          decoration: BoxDecoration(
+                            color: primaryColor,
+                            borderRadius: BorderRadius.circular(
+                              14,
+                            ),
+                          ),
+                          child: const Icon(
+                            Icons.schedule_rounded,
+                            color: Colors.white,
+                            size: 18,
+                          ),
+                        ),
+                        const SizedBox(
+                          width: 12,
+                        ),
+                        Expanded(
+                          child: Column(
+                            crossAxisAlignment: CrossAxisAlignment.start,
+                            children: [
+                              Text(
+                                "Ride Starts",
+                                style: GoogleFonts.poppins(
+                                  fontSize: 11,
+                                  color: Colors.grey,
+                                ),
+                              ),
+                              const SizedBox(
+                                height: 2,
+                              ),
+                              Text(
+                                "$rideTime • $rideDate",
+                                style: GoogleFonts.poppins(
+                                  fontWeight: FontWeight.w700,
+                                  fontSize: 13,
+                                ),
+                              ),
+                            ],
+                          ),
+                        ),
+                      ],
+                    ),
                   ),
                 ],
               );
             },
-            loading: () => const LinearProgressIndicator(minHeight: 2),
-            error: (_, __) => _infoRow(Icons.error, 'Failed to load ride info'),
+            loading: () => const SizedBox(),
+            error: (
+              _,
+              __,
+            ) =>
+                const SizedBox(),
           ),
 
-          const SizedBox(height: 10),
-
-          /// 🕓 Request Time
-          _infoRow(
-            Icons.access_time_rounded,
-            "Requested at: $formattedTime",
+          const SizedBox(
+            height: 18,
           ),
 
-          /// ✅ ACTIONS
-          if (request.status.toLowerCase() == 'pending') ...[
-            const SizedBox(height: 18),
+          // ==================================================
+          // ACTIONS
+          // ==================================================
+
+          if (request.status.toLowerCase() == "pending")
             Row(
-              mainAxisAlignment: MainAxisAlignment.end,
               children: [
-                OutlinedButton.icon(
-                  onPressed: () => onAction('rejected'),
-                  icon: const Icon(Icons.cancel_rounded, color: Colors.red),
-                  label: const Text(
-                    "Reject",
-                    style: TextStyle(color: Colors.red),
+                Expanded(
+                  child: _button(
+                    text: "Reject",
+                    color: Colors.redAccent,
+                    icon: Icons.close_rounded,
+                    onTap: () async {
+                      final notifier = ref.read(
+                        rideRequestWSControllerProvider(
+                          request.driverId,
+                        ).notifier,
+                      );
+
+                      await notifier.respondToRequest(
+                        requestId: request.id,
+                        isAccepted: false,
+                      );
+                    },
                   ),
                 ),
-                const SizedBox(width: 10),
-                ElevatedButton.icon(
-                  onPressed: () => onAction('accepted'),
-                  icon: const Icon(Icons.check_circle_outline),
-                  label: const Text("Accept"),
-                  style: ElevatedButton.styleFrom(
-                    backgroundColor: const Color(0xFF4CAF50),
-                    foregroundColor: Colors.white,
+                const SizedBox(
+                  width: 12,
+                ),
+                Expanded(
+                  child: _button(
+                    text: "Accept",
+                    color: primaryColor,
+                    icon: Icons.check_rounded,
+                    onTap: () async {
+                      final notifier = ref.read(
+                        rideRequestWSControllerProvider(
+                          request.driverId,
+                        ).notifier,
+                      );
+
+                      await notifier.respondToRequest(
+                        requestId: request.id,
+                        isAccepted: true,
+                      );
+                    },
                   ),
                 ),
               ],
             ),
-          ] else if (request.status.toLowerCase() == 'accepted') ...[
-            const SizedBox(height: 18),
-            Align(
-              alignment: Alignment.centerRight,
-              child: ElevatedButton.icon(
-                onPressed: () {
+
+          if (request.status.toLowerCase() == "accepted")
+            SizedBox(
+              width: double.infinity,
+              child: _button(
+                text: "Open Chat",
+                color: Colors.blue,
+                icon: Icons.chat_bubble_rounded,
+                onTap: () {
                   Navigator.push(
                     context,
                     MaterialPageRoute(
@@ -280,92 +549,207 @@ class _RideRequestCard extends StatelessWidget {
                     ),
                   );
                 },
-                icon: const Icon(Icons.chat_bubble_outline),
-                label: const Text("Open Chat"),
-                style: ElevatedButton.styleFrom(
-                  backgroundColor: const Color(0xFF3366CC),
-                  foregroundColor: Colors.white,
-                ),
               ),
             ),
-          ],
         ],
       ),
     );
   }
 
-  /// ℹ️ Info Row
-  Widget _infoRow(IconData icon, String text) {
-    return Padding(
-      padding: const EdgeInsets.symmetric(vertical: 3),
-      child: Row(
-        children: [
-          Icon(icon, size: 18, color: Colors.blueGrey[700]),
-          const SizedBox(width: 10),
-          Expanded(
-            child: Text(
-              text,
-              style: GoogleFonts.poppins(fontSize: 14),
-              overflow: TextOverflow.ellipsis,
+  // ==========================================================
+  // COMPONENTS
+  // ==========================================================
+
+  Widget _infoRow(
+    IconData icon,
+    String text,
+  ) {
+    return Row(
+      children: [
+        Container(
+          width: 38,
+          height: 38,
+          decoration: BoxDecoration(
+            color: primaryColor.withOpacity(
+              0.1,
+            ),
+            borderRadius: BorderRadius.circular(
+              12,
             ),
           ),
-        ],
-      ),
+          child: Icon(
+            icon,
+            color: primaryColor,
+            size: 18,
+          ),
+        ),
+        const SizedBox(
+          width: 12,
+        ),
+        Expanded(
+          child: Text(
+            text,
+            style: GoogleFonts.poppins(
+              fontSize: 13,
+              fontWeight: FontWeight.w500,
+            ),
+          ),
+        ),
+      ],
     );
   }
 
-  /// 🎯 Status Chip
-  Widget _statusChip(String status) {
-    final color = _getStatusColor(status);
-    final icon = _getStatusIcon(status);
+  Widget _routeRow(
+    IconData icon,
+    String text,
+    Color color,
+  ) {
+    return Row(
+      children: [
+        Icon(
+          icon,
+          color: color,
+          size: 18,
+        ),
+        const SizedBox(
+          width: 10,
+        ),
+        Expanded(
+          child: Text(
+            text,
+            style: GoogleFonts.poppins(
+              fontWeight: FontWeight.w600,
+              fontSize: 13,
+            ),
+          ),
+        ),
+      ],
+    );
+  }
+
+  Widget _statusChip(
+    String status,
+  ) {
+    Color color;
+
+    switch (status.toLowerCase()) {
+      case 'accepted':
+        color = Colors.green;
+        break;
+
+      case 'rejected':
+        color = Colors.red;
+        break;
+
+      default:
+        color = Colors.orange;
+    }
 
     return Container(
-      padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
-      decoration: BoxDecoration(
-        color: color.withOpacity(0.15),
-        borderRadius: BorderRadius.circular(20),
-        border: Border.all(color: color.withOpacity(0.3)),
+      padding: const EdgeInsets.symmetric(
+        horizontal: 12,
+        vertical: 6,
       ),
-      child: Row(
+      decoration: BoxDecoration(
+        color: color.withOpacity(
+          0.12,
+        ),
+        borderRadius: BorderRadius.circular(
+          50,
+        ),
+      ),
+      child: Text(
+        status.toUpperCase(),
+        style: GoogleFonts.poppins(
+          color: color,
+          fontSize: 11,
+          fontWeight: FontWeight.w700,
+        ),
+      ),
+    );
+  }
+
+  Widget _button({
+    required String text,
+    required Color color,
+    required IconData icon,
+    required VoidCallback onTap,
+  }) {
+    return SizedBox(
+      height: 50,
+      child: ElevatedButton.icon(
+        onPressed: onTap,
+        icon: Icon(
+          icon,
+          size: 18,
+        ),
+        label: Text(
+          text,
+          style: GoogleFonts.poppins(
+            fontWeight: FontWeight.w600,
+          ),
+        ),
+        style: ElevatedButton.styleFrom(
+          backgroundColor: color,
+          foregroundColor: Colors.white,
+          elevation: 0,
+          shape: RoundedRectangleBorder(
+            borderRadius: BorderRadius.circular(
+              16,
+            ),
+          ),
+        ),
+      ),
+    );
+  }
+}
+
+// ============================================================
+// EMPTY STATE
+// ============================================================
+
+class _EmptyState extends StatelessWidget {
+  const _EmptyState();
+
+  @override
+  Widget build(
+    BuildContext context,
+  ) {
+    return Center(
+      child: Column(
+        mainAxisAlignment: MainAxisAlignment.center,
         children: [
-          Icon(icon, size: 16, color: color),
-          const SizedBox(width: 5),
+          Container(
+            width: 110,
+            height: 110,
+            decoration: BoxDecoration(
+              color: const Color(
+                0xFF89B162,
+              ).withOpacity(
+                0.1,
+              ),
+              shape: BoxShape.circle,
+            ),
+            child: const Icon(
+              Icons.local_taxi_rounded,
+              size: 55,
+              color: Color(
+                0xFF89B162,
+              ),
+            ),
+          ),
+          const SizedBox(
+            height: 20,
+          ),
           Text(
-            status.toUpperCase(),
+            "No incoming requests",
             style: GoogleFonts.poppins(
-              fontSize: 12,
-              fontWeight: FontWeight.w600,
-              color: color,
+              fontSize: 18,
+              fontWeight: FontWeight.w700,
             ),
           ),
         ],
       ),
     );
-  }
-
-  Color _getStatusColor(String status) {
-    switch (status.toLowerCase()) {
-      case 'accepted':
-        return const Color(0xFF4CAF50);
-      case 'rejected':
-        return const Color(0xFFFF6B6B);
-      case 'pending':
-        return const Color(0xFFFFB74D);
-      default:
-        return const Color(0xFF90A4AE);
-    }
-  }
-
-  IconData _getStatusIcon(String status) {
-    switch (status.toLowerCase()) {
-      case 'accepted':
-        return Icons.check_circle_rounded;
-      case 'rejected':
-        return Icons.cancel_rounded;
-      case 'pending':
-        return Icons.hourglass_top_rounded;
-      default:
-        return Icons.help_outline_rounded;
-    }
   }
 }

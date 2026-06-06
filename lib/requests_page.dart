@@ -2,7 +2,8 @@ import 'package:flutter/material.dart';
 import 'package:font_awesome_flutter/font_awesome_flutter.dart';
 import 'package:google_fonts/google_fonts.dart';
 import 'package:hop_eir/features/requests/presentation/pages/driver_request_page.dart';
-import 'package:hop_eir/features/requests/presentation/pages/sent_request_page.dart';
+import 'package:hop_eir/features/requests/presentation/pages/sent_request_page.dart'
+    hide ReceivedRequestsPage;
 
 class RequestsPage extends StatefulWidget {
   const RequestsPage({super.key});
@@ -154,7 +155,11 @@ class _RequestsPageState extends State<RequestsPage>
             Expanded(
               child: TabBarView(
                 controller: _tabController,
-                children: const [ReceivedRequestsPage(), SentRequestsPage()],
+                // ignore: prefer_const_literals_to_create_immutables
+                children: [
+                  const ReceivedRequestsPage(),
+                  const SentRequestsPage()
+                ],
               ),
             ),
             const SizedBox(height: 60),

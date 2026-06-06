@@ -10,6 +10,7 @@ import 'package:hop_eir/features/rides/domain/usecases/create_ride_usecase.dart'
 import 'package:hop_eir/features/rides/domain/usecases/created_rides_usecase.dart';
 import 'package:hop_eir/features/rides/domain/usecases/get_ride_by_id_usecase.dart';
 import 'package:hop_eir/features/rides/domain/usecases/get_rides_usecase.dart';
+import 'package:hop_eir/features/rides/domain/usecases/match_ride_usecase.dart';
 import 'package:hop_eir/features/rides/domain/usecases/request_ride_usecase.dart';
 import 'package:hop_eir/features/rides/presentation/providers/ride_provider.dart';
 
@@ -19,11 +20,13 @@ class RideController extends AutoDisposeAsyncNotifier<List<Ride>> {
   late final CreatedRidesUsecase _createdRidesUsecase;
   late final RequestRideUsecase _requestRideUsecase;
   late final GetRideByIdUsecase _getRideByIdUsecase;
+  late final MatchRidesUseCase _matchRidesUseCase;
 
   @override
   FutureOr<List<Ride>> build() async {
     _getRidesUsecase = ref.watch(getRidesUsecaseProvider);
     _createRideUsecase = ref.watch(creatRideUsecaseProvider);
+    _matchRidesUseCase = ref.watch(matchRidesUsecaseProvider);
     _createdRidesUsecase = ref.watch(createdRidesUsecaseProvider);
     _requestRideUsecase = ref.watch(requestRideUsecaseProvider);
     _getRideByIdUsecase = ref.watch(getRideByIdUsecaseProvider);
@@ -35,12 +38,36 @@ class RideController extends AutoDisposeAsyncNotifier<List<Ride>> {
     state = await AsyncValue.guard(() => _getRidesUsecase());
   }
 
+  Future<List<Map<String, dynamic>>> matchRides({
+    required int riderStartStationId,
+    required int riderEndStationId,
+    required String riderUserId,
+    int timeWindowMinutes = 60,
+  }) async {
+    try {
+      final matchedRides = await _matchRidesUseCase(
+        riderStartStationId: riderStartStationId,
+        riderEndStationId: riderEndStationId,
+        riderUserId: riderUserId,
+        timeWindowMinutes: timeWindowMinutes,
+      );
+
+      print("✅ Matched rides: $matchedRides");
+
+      return matchedRides;
+    } catch (e) {
+      print("❌ Match rides error: $e");
+      rethrow;
+    }
+  }
+
   Future<Ride?> createRide({
     required String user,
     required int vehicle,
     required int totalSeats,
     required int startLocation,
     required int endLocation,
+    required List routePath,
     required double distance,
     required DateTime startTime,
     required DateTime endTime,
@@ -52,6 +79,7 @@ class RideController extends AutoDisposeAsyncNotifier<List<Ride>> {
         seats: totalSeats,
         startLocation: startLocation,
         endLocation: endLocation,
+        routePath: routePath,
         distance: distance,
         startTime: startTime,
         endTime: endTime,

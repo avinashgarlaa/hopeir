@@ -5,6 +5,7 @@ import 'package:hop_eir/features/rides/domain/usecases/created_rides_usecase.dar
 import 'package:hop_eir/features/rides/domain/usecases/get_requests_usecase.dart';
 import 'package:hop_eir/features/rides/domain/usecases/get_ride_by_id_usecase.dart';
 import 'package:hop_eir/features/rides/domain/usecases/get_rides_usecase.dart';
+import 'package:hop_eir/features/rides/domain/usecases/match_ride_usecase.dart';
 import 'package:hop_eir/features/rides/domain/usecases/request_ride_usecase.dart';
 import 'package:hop_eir/features/rides/presentation/controllers/ride_controller.dart';
 import 'package:hop_eir/features/rides/presentation/providers/ride_repository_provider.dart';
@@ -12,6 +13,11 @@ import 'package:hop_eir/features/rides/presentation/providers/ride_repository_pr
 final getRidesUsecaseProvider = Provider<GetRidesUsecase>((ref) {
   final repository = ref.read(rideRepositoryProvider);
   return GetRidesUsecase(repository);
+});
+
+final matchRidesUsecaseProvider = Provider<MatchRidesUseCase>((ref) {
+  final repository = ref.read(rideRepositoryProvider);
+  return MatchRidesUseCase(repository);
 });
 
 final creatRideUsecaseProvider = Provider<CreateRideUsecase>((ref) {
@@ -47,5 +53,5 @@ final rideByIdProvider = FutureProvider.family<Ride, int>((ref, rideId) async {
 
 final rideControllerProvider =
     AutoDisposeAsyncNotifierProvider<RideController, List<Ride>>(() {
-      return RideController();
-    });
+  return RideController();
+});

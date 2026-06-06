@@ -3,6 +3,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:google_fonts/google_fonts.dart';
 import 'package:font_awesome_flutter/font_awesome_flutter.dart';
+import 'package:hop_eir/base_url.dart';
 import 'package:hop_eir/features/auth/presentation/pages/login_screen.dart';
 import 'package:hop_eir/features/auth/presentation/providers/auth_provider.dart';
 import 'package:http/http.dart' as http;
@@ -35,7 +36,7 @@ class MyProfileSection extends ConsumerWidget {
     Future<void> deleteAccount(BuildContext context, String email) async {
       try {
         final response = await http.delete(
-          Uri.parse('https://hopeir.onrender.com/delete-user/'),
+          Uri.parse('$baseURL/delete-user/'),
           headers: {'Content-Type': 'application/json'},
           body: jsonEncode({'email': email}),
         );

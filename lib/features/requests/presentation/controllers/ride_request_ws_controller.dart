@@ -5,6 +5,8 @@ import 'dart:convert';
 import 'dart:math';
 
 import 'package:flutter_riverpod/flutter_riverpod.dart';
+import 'package:hop_eir/features/notifications/notification_service.dart';
+import 'package:hop_eir/features/requests/presentation/controllers/passanger_ride_ws_controller.dart';
 import 'package:web_socket_channel/web_socket_channel.dart';
 import 'package:web_socket_channel/status.dart' as status;
 
@@ -12,7 +14,6 @@ import '../../data/models/ride_request_model.dart';
 import '../../domain/entities/ride_request.dart';
 
 // ✅ IMPORTANT: passenger ride ws controller
-import 'passanger_ride_ws_controller.dart';
 
 final rideRequestWSControllerProvider = StateNotifierProvider.family<
     RideRequestWSController, RideRequestWSState, String>((ref, userId) {
@@ -58,8 +59,9 @@ class RideRequestWSController extends StateNotifier<RideRequestWSState> {
   // ======================================================
   Uri _buildWsUri() {
     return Uri(
-      scheme: "wss",
-      host: "hopeir.onrender.com",
+      scheme: "ws",
+      host: "34.122.56.250",
+      port: 8000,
       path: "/ws/ride-requests/",
       queryParameters: {"user_id": userId},
     );
@@ -93,17 +95,33 @@ class RideRequestWSController extends StateNotifier<RideRequestWSState> {
       // connect
       _channel = WebSocketChannel.connect(uri);
 
+      await _channel!.ready;
+
       _subscription = _channel!.stream.listen(
         _handleMessageSafely,
-        onDone: _handleDisconnectSafely,
+        onDone: () {
+          _log(
+            "🚫 WS CLOSED "
+            "closeCode=${_channel?.closeCode} "
+            "closeReason=${_channel?.closeReason}",
+          );
+
+          _handleDisconnectSafely();
+        },
         onError: (error) {
-          _logError("WS stream error", error is Object ? error : null);
+          _logError("WS stream error", error);
           _handleDisconnectSafely();
         },
         cancelOnError: true,
       );
 
-      state = state.copyWith(status: ConnectionStatus.connected, error: null);
+      state = state.copyWith(
+        status: ConnectionStatus.connected,
+        error: null,
+      );
+      _log("✅ WebSocket READY "
+          "user=$userId "
+          "time=${DateTime.now().toIso8601String()}");
 
       _reconnectAttempts = 0;
       _log("✅ Connected");
@@ -123,8 +141,10 @@ class RideRequestWSController extends StateNotifier<RideRequestWSState> {
 
     final msgString = message?.toString() ?? "";
 
-    // don't spam massive payload
-    _log("📩 Message received (${msgString.length} chars)");
+    _log("📩 Message received "
+        "(${msgString.length} chars)");
+
+    _log("📦 RAW: $msgString");
 
     Map<String, dynamic>? decoded;
 
@@ -157,7 +177,19 @@ class RideRequestWSController extends StateNotifier<RideRequestWSState> {
         break;
 
       case 'ride_request_updated':
+        _log("UPDATE DATA => ${jsonEncode(data)}");
         _handleRequestUpdatedSafely(data);
+        break;
+
+      case 'error':
+        final message = decoded['message']?.toString() ?? 'Unknown error';
+
+        _log("❌ Backend Error => $message");
+
+        LocalNotificationHelper.showNotification(
+          "Ride Request Error",
+          message,
+        );
         break;
 
       default:
@@ -192,12 +224,7 @@ class RideRequestWSController extends StateNotifier<RideRequestWSState> {
   // INITIAL STATE
   // ======================================================
   void _handleInitialStateSafely(dynamic data) {
-    if (_isDisposed) return;
-
-    if (data is! List) {
-      _log("⚠️ initial_state data is not List");
-      return;
-    }
+    if (_isDisposed || data is! List) return;
 
     try {
       final requests =
@@ -209,9 +236,6 @@ class RideRequestWSController extends StateNotifier<RideRequestWSState> {
         hasUnread: requests.isNotEmpty,
       );
 
-      _log("📥 Initial requests → ${requests.length}");
-
-      // ✅ trigger passenger WS only for accepted + not-final rides
       for (final req in requests) {
         _connectRideSocketIfAccepted(req);
       }
@@ -227,11 +251,22 @@ class RideRequestWSController extends StateNotifier<RideRequestWSState> {
     if (_isDisposed) return;
 
     try {
-      final updated = RideRequestModel.fromJson(data).toEntity();
+      _log("📥 ride_request_updated => ${jsonEncode(data)}");
 
-      // update or insert
+      if (data == null || data is! Map) {
+        _log("⚠️ Invalid ride_request_updated payload");
+        return;
+      }
+
+      final updated = RideRequestModel.fromJson(
+        Map<String, dynamic>.from(data),
+      ).toEntity();
+
       final updatedList = [...state.incomingRequests];
-      final index = updatedList.indexWhere((r) => r.id == updated.id);
+
+      final index = updatedList.indexWhere(
+        (r) => r.id.toString() == updated.id.toString(),
+      );
 
       if (index == -1) {
         updatedList.add(updated);
@@ -246,13 +281,31 @@ class RideRequestWSController extends StateNotifier<RideRequestWSState> {
       );
 
       _log(
-        "🔄 Request updated → requestId=${updated.id} rideId=${updated.rideId} status=${updated.status}",
+        "🔄 Updated request "
+        "id=${updated.id} "
+        "ride=${updated.rideId} "
+        "status=${updated.status}",
       );
 
-      // ✅ if now accepted, connect passenger ride ws
-      _connectRideSocketIfAccepted(updated);
+      final isNewRequest = index == -1;
+
+      if (isNewRequest && updated.status.toLowerCase() == "pending") {
+        LocalNotificationHelper.showNotification(
+          "🚘 New Ride Request",
+          "Passenger requested your ride",
+        );
+
+        _log("🔔 Notification sent");
+      }
+
+      if (updated.status.toLowerCase() == "accepted") {
+        _connectRideSocketIfAccepted(updated);
+      }
     } catch (e, st) {
-      _logError("ride_request_updated parse error", e, st);
+      _log("❌ ride_request_updated parse failed");
+      _log("DATA => ${jsonEncode(data)}");
+      _log("ERROR => $e");
+      _log("$st");
     }
   }
 
@@ -273,7 +326,7 @@ class RideRequestWSController extends StateNotifier<RideRequestWSState> {
       }
 
       // ✅ IMPORTANT FILTER: don't connect if ride already completed/cancelled
-      // this uses cache from passenger controller file
+      // This is a TOP-LEVEL function imported from passenger_ride_ws_controller.dart
       if (isRideFinalCached(rideId)) {
         _log(
             "🔒 Ride #$rideId already final (cached). Skip passenger WS trigger.");
@@ -313,9 +366,11 @@ class RideRequestWSController extends StateNotifier<RideRequestWSState> {
         "request_id": requestId,
       };
 
+      _log("📤 SENDING => ${jsonEncode(payload)}");
+
       _channel!.sink.add(jsonEncode(payload));
 
-      _log("📤 Sent action=${payload["action"]} requestId=$requestId");
+      _log("📤 SENT action=${payload["action"]} requestId=$requestId");
     } catch (e, st) {
       _logError("send error", e, st);
     }
@@ -325,9 +380,17 @@ class RideRequestWSController extends StateNotifier<RideRequestWSState> {
   // RECONNECT LOGIC
   // ======================================================
   void _handleDisconnectSafely() {
-    if (_isDisposed) return;
+    if (_isDisposed) {
+      _log("🚫 WS closed because controller is disposed");
+      return;
+    }
 
-    _log("🚫 Disconnected");
+    _log(
+      "🚫 WS disconnected | "
+      "connected=${state.isConnected} | "
+      "attempts=$_reconnectAttempts | "
+      "time=${DateTime.now().toIso8601String()}",
+    );
 
     try {
       _subscription?.cancel();
@@ -367,6 +430,8 @@ class RideRequestWSController extends StateNotifier<RideRequestWSState> {
   // ======================================================
   @override
   void dispose() {
+    _log("🗑 RideRequestWSController DISPOSED");
+
     _isDisposed = true;
 
     try {

@@ -17,6 +17,7 @@ class RideRepositoryImpl extends RideRepository {
     required int seats,
     required int startLocation,
     required int endLocation,
+    required List routePath,
     required double distance,
     required DateTime startTime,
     required DateTime endTime,
@@ -27,6 +28,7 @@ class RideRepositoryImpl extends RideRepository {
       seats: seats,
       startLocation: startLocation,
       endLocation: endLocation,
+      routePath: routePath,
       distance: distance,
       startTime: startTime,
       endTime: endTime,
@@ -74,5 +76,22 @@ class RideRepositoryImpl extends RideRepository {
   @override
   Future<Ride> getRideById({required int rideId}) {
     return remoteDatasource.getRideById(rideId: rideId);
+  }
+
+  @override
+  Future<List<Map<String, dynamic>>> matchRides({
+    required int riderStartStationId,
+    required int riderEndStationId,
+    required String riderUserId,
+    int timeWindowMinutes = 60,
+  }) async {
+    final response = await remoteDatasource.matchRides(
+      riderStartStationId: riderStartStationId,
+      riderEndStationId: riderEndStationId,
+      riderUserId: riderUserId,
+      timeWindowMinutes: timeWindowMinutes,
+    );
+
+    return response;
   }
 }

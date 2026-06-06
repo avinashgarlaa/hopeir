@@ -181,8 +181,14 @@ class RideWSController extends StateNotifier<RideWSState> {
 
     if (_channel != null) return;
 
-    final uri = Uri.parse(
-      'wss://hopeir.onrender.com/ws/ride/$rideId/?user_id=$userId',
+    final uri = Uri(
+      scheme: 'ws',
+      host: '34.122.56.250',
+      port: 8000,
+      path: '/ws/ride/$rideId/',
+      queryParameters: {
+        'user_id': userId,
+      },
     );
 
     try {

@@ -4,6 +4,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:google_fonts/google_fonts.dart';
 import 'package:hop_eir/features/auth/presentation/providers/auth_provider.dart';
+import 'package:hop_eir/features/rides/domain/usecases/route_service.dart';
 import 'package:hop_eir/features/rides/presentation/controllers/ride_ws_controller.dart';
 import 'package:hop_eir/features/rides/presentation/pages/post_ride_page.dart';
 import 'package:hop_eir/features/rides/presentation/providers/ride_provider.dart';
@@ -205,6 +206,15 @@ Future<void> showPostRideDialog(BuildContext context, WidgetRef ref) async {
               final distance =
                   double.tryParse(distanceController.text.trim()) ?? 0;
 
+              final routeService = RouteService();
+
+              final routePath = await routeService.getRoutePoints(
+                startLat: startStation!.latitude,
+                startLng: startStation!.longitude,
+                endLat: destinationStation!.latitude,
+                endLng: destinationStation!.longitude,
+              );
+
               final createdRide = await ref
                   .read(rideControllerProvider.notifier)
                   .createRide(
@@ -213,6 +223,7 @@ Future<void> showPostRideDialog(BuildContext context, WidgetRef ref) async {
                     totalSeats: selectedSeats!,
                     startLocation: startStation!.id,
                     endLocation: destinationStation!.id,
+                    routePath: routePath,
                     distance: distance,
                     startTime: selectedDateTime!,
                     endTime: selectedDateTime!.add(const Duration(hours: 1)),

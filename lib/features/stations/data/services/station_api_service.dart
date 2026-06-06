@@ -1,9 +1,10 @@
 import 'package:dio/dio.dart';
+import 'package:hop_eir/base_url.dart';
 import '../models/station_model.dart';
 
 class StationApiService {
   final Dio dio = Dio();
-  final String baseUrl = "https://hopeir.onrender.com/stations/get/";
+  final String baseUrl = "$baseURL/stations/get/";
 
   Future<List<StationModel>> fetchAllStations() async {
     final response = await dio.get(baseUrl);

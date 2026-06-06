@@ -14,10 +14,10 @@ class FirebaseNotificationHelper {
     // iOS settings
     const DarwinInitializationSettings iosSettings =
         DarwinInitializationSettings(
-          requestAlertPermission: true,
-          requestBadgePermission: true,
-          requestSoundPermission: true,
-        );
+      requestAlertPermission: true,
+      requestBadgePermission: true,
+      requestSoundPermission: true,
+    );
 
     // Final init settings
     const InitializationSettings initSettings = InitializationSettings(
@@ -39,7 +39,7 @@ class FirebaseNotificationHelper {
       final title = message.notification!.title ?? '📢 Notification';
       final body = message.notification!.body ?? 'You have a new update.';
 
-      final androidDetails = AndroidNotificationDetails(
+      const androidDetails = AndroidNotificationDetails(
         'default_channel',
         'General Notifications',
         channelDescription: 'This channel is used for general notifications.',
@@ -50,7 +50,7 @@ class FirebaseNotificationHelper {
 
       const iosDetails = DarwinNotificationDetails();
 
-      final notificationDetails = NotificationDetails(
+      const notificationDetails = NotificationDetails(
         android: androidDetails,
         iOS: iosDetails,
       );
