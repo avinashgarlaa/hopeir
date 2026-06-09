@@ -146,11 +146,20 @@ class _ReceivedRideCard extends ConsumerWidget {
             requestTime,
           )
         : '';
+    final passengerId = request.passengerId.trim();
+
+    if (passengerId.isEmpty) {
+      return Container(
+        padding: const EdgeInsets.all(14),
+        child: Text(
+          "Passenger information unavailable",
+          style: GoogleFonts.poppins(),
+        ),
+      );
+    }
 
     final passengerAsync = ref.watch(
-      getUserByIdProviders(
-        request.passengerId,
-      ),
+      getUserByIdProviders(passengerId),
     );
 
     final rideAsync = ref.watch(
@@ -322,10 +331,13 @@ class _ReceivedRideCard extends ConsumerWidget {
               )?.toLocal();
 
               final rideTime = startTime != null
-                  ? DateFormat(
-                      'hh:mm a',
-                    ).format(
-                      startTime,
+                  ? DateFormat('hh:mm a').format(
+                      startTime.subtract(
+                        const Duration(
+                          hours: 5,
+                          minutes: 30,
+                        ),
+                      ),
                     )
                   : '';
 
@@ -501,15 +513,13 @@ class _ReceivedRideCard extends ConsumerWidget {
                       );
 
                       await notifier.respondToRequest(
-                        requestId: request.id,
+                        requestId: int.parse(request.id),
                         isAccepted: false,
                       );
                     },
                   ),
                 ),
-                const SizedBox(
-                  width: 12,
-                ),
+                const SizedBox(width: 12),
                 Expanded(
                   child: _button(
                     text: "Accept",
@@ -523,7 +533,7 @@ class _ReceivedRideCard extends ConsumerWidget {
                       );
 
                       await notifier.respondToRequest(
-                        requestId: request.id,
+                        requestId: int.parse(request.id),
                         isAccepted: true,
                       );
                     },
@@ -531,7 +541,6 @@ class _ReceivedRideCard extends ConsumerWidget {
                 ),
               ],
             ),
-
           if (request.status.toLowerCase() == "accepted")
             SizedBox(
               width: double.infinity,

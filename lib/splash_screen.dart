@@ -37,7 +37,11 @@ class _SplashScreenState extends ConsumerState<SplashScreen>
   @override
   void initState() {
     super.initState();
+    _initializeAnimations();
+    _startAnimations();
+  }
 
+  void _initializeAnimations() {
     _logoController = AnimationController(
       vsync: this,
       duration: const Duration(milliseconds: 1200),
@@ -70,8 +74,6 @@ class _SplashScreenState extends ConsumerState<SplashScreen>
       parent: _textController,
       curve: Curves.easeIn,
     );
-
-    _startAnimations();
   }
 
   Future<void> _startAnimations() async {
@@ -82,137 +84,162 @@ class _SplashScreenState extends ConsumerState<SplashScreen>
       await Future.delayed(const Duration(seconds: 1));
 
       if (!mounted) return;
+      await _handleAuthenticationAndSetup();
+    } catch (e) {
+      debugPrint("❌ Animation error: $e");
+      if (mounted) {
+        Navigator.pushReplacement(
+          context,
+          MaterialPageRoute(builder: (_) => const LoginScreen()),
+        );
+      }
+    }
+  }
 
-      // ✅ get container ONCE (important)
+  Future<void> _handleAuthenticationAndSetup() async {
+    try {
       final container = ProviderScope.containerOf(context, listen: false);
-
       final prefs = await SharedPreferences.getInstance();
       final email = prefs.getString('user_email');
       final password = prefs.getString('user_password');
 
       debugPrint("📧 Cached email: $email");
-      debugPrint("🔑 Cached password exists: ${password != null}");
 
       if (email == null || password == null) {
-        if (!mounted) return;
-        Navigator.pushReplacement(
-          context,
-          MaterialPageRoute(builder: (_) => const LoginScreen()),
-        );
+        _navigateToLogin();
         return;
       }
 
-      // ✅ no unawaited here: keep flow controlled
+      // Attempt login
       final authNotifier = container.read(authNotifierProvider.notifier);
       await authNotifier.checkLoginStatus(email, password, context);
 
       final user = container.read(authNotifierProvider).user;
 
       if (user == null || user.userId.isEmpty) {
-        if (!mounted) return;
-        Navigator.pushReplacement(
-          context,
-          MaterialPageRoute(builder: (_) => const LoginScreen()),
-        );
+        _navigateToLogin();
         return;
       }
 
       debugPrint("✅ Logged in as user ID: ${user.userId}");
 
-      // ✅ Fetch vehicle (safe)
-      try {
-        await container
-            .read(vehicleControllerProvider.notifier)
-            .fetchVehicleByUserId(user.userId);
-      } catch (e) {
-        debugPrint("⚠️ Vehicle fetch failed: $e");
+      // Setup user data
+      await _setupUserData(container, user);
+
+      // Setup WebSocket connections
+      await _setupWebSocketConnections(container, user);
+
+      if (!mounted) return;
+      _navigateToMainScreen();
+    } catch (e, st) {
+      debugPrint("❌ Error during authentication: $e\n$st");
+      if (mounted) {
+        _navigateToLogin();
+      }
+    }
+  }
+
+  Future<void> _setupUserData(ProviderContainer container, dynamic user) async {
+    try {
+      await container
+          .read(vehicleControllerProvider.notifier)
+          .fetchVehicleByUserId(user.userId);
+      debugPrint("✅ Vehicle data loaded");
+    } catch (e) {
+      debugPrint("⚠️ Vehicle fetch failed: $e");
+    }
+  }
+
+  Future<void> _setupWebSocketConnections(
+      ProviderContainer container, dynamic user) async {
+    // Setup ride requests WebSocket listener
+    await _setupRideRequestsListener(container, user);
+
+    // Setup driver rides
+    await _setupDriverRides(container, user);
+
+    // Setup passenger accepted rides
+    await _setupPassengerRides(container, user);
+  }
+
+  Future<void> _setupRideRequestsListener(
+      ProviderContainer container, dynamic user) async {
+    final requestWSProvider = rideRequestWSControllerProvider(user.userId);
+    bool initialSyncDone = false;
+    List<RideRequest> previousRequests = [];
+    final Set<int> passengerWSConnectedRideIds = {};
+
+    Future<void> triggerPassengerRideWS(int rideId) async {
+      if (passengerWSConnectedRideIds.contains(rideId)) return;
+
+      if (isRideFinalCached(rideId)) {
+        debugPrint("🔒 Passenger ride #$rideId already final (cached)");
+        passengerWSConnectedRideIds.add(rideId);
+        return;
       }
 
-      // =========================================================
-      // ✅ Ride Requests WS (global request listener)
-      // =========================================================
-      final requestWSProvider = rideRequestWSControllerProvider(user.userId);
+      passengerWSConnectedRideIds.add(rideId);
 
-      bool initialSyncDone = false;
-      List<RideRequest> previousRequests = [];
-      final Set<int> passengerWSConnectedRideIds = {};
+      try {
+        container.read(passengerRideWSProvider(rideId).notifier);
+        debugPrint("🚀 Triggered PassengerRideWSController for ride: $rideId");
+        container.read(rideWSControllerProvider(rideId).notifier).connect();
+      } catch (e) {
+        debugPrint("❌ Error triggering passenger ride #$rideId: $e");
+      }
+    }
 
-      Future<void> triggerPassengerRideWS(int rideId) async {
-        if (passengerWSConnectedRideIds.contains(rideId)) return;
+    container.listen<RideRequestWSState>(
+      requestWSProvider,
+      (prev, next) async {
+        final currentRequests = next.incomingRequests;
 
-        if (isRideFinalCached(rideId)) {
-          debugPrint("🔒 Passenger ride #$rideId already final (cached)");
-          passengerWSConnectedRideIds.add(rideId);
+        if (!initialSyncDone) {
+          initialSyncDone = true;
+          previousRequests = List.from(currentRequests);
+          debugPrint("🛑 Skip notifications for initial_state sync");
           return;
         }
 
-        passengerWSConnectedRideIds.add(rideId);
+        final oldMap = {for (var r in previousRequests) r.id: r};
 
-        try {
-          container.read(passengerRideWSProvider(rideId).notifier);
-          debugPrint(
-              "🚀 Triggered PassengerRideWSController for ride: $rideId");
+        for (final r in currentRequests) {
+          final old = oldMap[r.id];
+          if (old == null) continue;
 
-          // ✅ Passenger also needs ride WS for driver_location
-          container.read(rideWSControllerProvider(rideId).notifier).connect();
-        } catch (e) {
-          debugPrint("❌ Error triggering passenger ride #$rideId: $e");
-        }
-      }
+          final oldStatus = old.status.toLowerCase();
+          final newStatus = r.status.toLowerCase();
 
-      // ✅ listen to requests updates
-      container.listen<RideRequestWSState>(
-        requestWSProvider,
-        (prev, next) async {
-          final currentRequests = next.incomingRequests;
+          if (oldStatus != newStatus) {
+            final isDriver = r.passengerId != user.userId;
 
-          if (!initialSyncDone) {
-            initialSyncDone = true;
-            previousRequests = List.from(currentRequests);
-            debugPrint("🛑 Skip notifications for initial_state sync");
-            return;
-          }
+            LocalNotificationHelper.showNotification(
+              isDriver
+                  ? '🔁 Ride Request Updated'
+                  : '📢 Request Status Updated',
+              '${isDriver ? "Request from ${r.passengerName}" : "Your request"} is now ${r.status.toUpperCase()}',
+            );
 
-          final oldMap = {for (var r in previousRequests) r.id: r};
-
-          for (final r in currentRequests) {
-            final old = oldMap[r.id];
-            if (old == null) continue;
-
-            final oldStatus = old.status.toLowerCase();
-            final newStatus = r.status.toLowerCase();
-
-            if (oldStatus != newStatus) {
-              final isDriver = r.passengerId != user.userId;
-
+            if (!isDriver && newStatus == "accepted") {
               LocalNotificationHelper.showNotification(
-                isDriver
-                    ? '🔁 Ride Request Updated'
-                    : '📢 Request Status Updated',
-                '${isDriver ? "Request from ${r.passengerName}" : "Your request"} is now ${r.status.toUpperCase()}',
+                '✅ Ride Accepted',
+                'Driver accepted your request. Ride tracking started.',
               );
-
-              // passenger accepted -> connect
-              if (!isDriver && newStatus == "accepted") {
-                LocalNotificationHelper.showNotification(
-                  '✅ Ride Accepted',
-                  'Driver accepted your request. Ride tracking started.',
-                );
-                await triggerPassengerRideWS(r.rideId);
-              }
+              await triggerPassengerRideWS(r.rideId);
             }
           }
+        }
 
-          previousRequests = List.from(currentRequests);
-        },
-        fireImmediately: false,
-      );
+        previousRequests = List.from(currentRequests);
+      },
+      fireImmediately: false,
+    );
+  }
 
-      // =========================================================
-      // ✅ DRIVER: connect WS for created rides
-      // =========================================================
+  Future<void> _setupDriverRides(
+      ProviderContainer container, dynamic user) async {
+    try {
       final rideController = container.read(rideControllerProvider.notifier);
-
       final createdRides = await rideController.fetchCreatedRides(
         currentUserId: user.userId,
       );
@@ -229,7 +256,6 @@ class _SplashScreenState extends ConsumerState<SplashScreen>
             continue;
           }
 
-          // ✅ just connect, controller auto-starts tracking when status ongoing
           final ws = container.read(rideWSControllerProvider(rideId).notifier);
           ws.connect();
 
@@ -238,13 +264,24 @@ class _SplashScreenState extends ConsumerState<SplashScreen>
           debugPrint("❌ Error fetching ride #$rideId for driver: $e");
         }
       }
+    } catch (e) {
+      debugPrint("❌ Error setting up driver rides: $e");
+    }
+  }
 
-      // =========================================================
-      // ✅ PASSENGER: connect WS for already accepted rides
-      // =========================================================
+  Future<void> _setupPassengerRides(
+      ProviderContainer container, dynamic user) async {
+    try {
       await Future.delayed(const Duration(seconds: 2));
 
+      final requestWSProvider = rideRequestWSControllerProvider(user.userId);
       final requests = container.read(requestWSProvider).incomingRequests;
+
+      final rideController = container.read(rideControllerProvider.notifier);
+      final createdRides = await rideController.fetchCreatedRides(
+        currentUserId: user.userId,
+      );
+      final createdRideIds = createdRides.map((r) => r.id).toSet();
 
       final joinedRideIds = requests
           .where((r) => r.passengerId == user.userId)
@@ -254,26 +291,49 @@ class _SplashScreenState extends ConsumerState<SplashScreen>
           .toSet()
           .difference(createdRideIds);
 
+      final Set<int> passengerWSConnectedRideIds = {};
+
+      Future<void> triggerPassengerRideWS(int rideId) async {
+        if (passengerWSConnectedRideIds.contains(rideId)) return;
+
+        if (isRideFinalCached(rideId)) {
+          passengerWSConnectedRideIds.add(rideId);
+          return;
+        }
+
+        passengerWSConnectedRideIds.add(rideId);
+
+        try {
+          container.read(passengerRideWSProvider(rideId).notifier);
+          container.read(rideWSControllerProvider(rideId).notifier).connect();
+          debugPrint("🚀 Connected PASSENGER WS for ride: $rideId");
+        } catch (e) {
+          debugPrint("❌ Error connecting passenger ride #$rideId: $e");
+        }
+      }
+
       for (final rideId in joinedRideIds) {
         await triggerPassengerRideWS(rideId);
       }
+    } catch (e) {
+      debugPrint("❌ Error setting up passenger rides: $e");
+    }
+  }
 
-      if (!mounted) return;
-
-      // ✅ Navigate to main screen
-      Navigator.pushReplacement(
-        context,
-        MaterialPageRoute(builder: (_) => const MainScreen()),
-      );
-
-      return;
-    } catch (e, st) {
-      debugPrint("❌ Error during startup: $e\n$st");
-
-      if (!mounted) return;
+  void _navigateToLogin() {
+    if (mounted) {
       Navigator.pushReplacement(
         context,
         MaterialPageRoute(builder: (_) => const LoginScreen()),
+      );
+    }
+  }
+
+  void _navigateToMainScreen() {
+    if (mounted) {
+      Navigator.pushReplacement(
+        context,
+        MaterialPageRoute(builder: (_) => const MainScreen()),
       );
     }
   }
@@ -286,7 +346,7 @@ class _SplashScreenState extends ConsumerState<SplashScreen>
     super.dispose();
   }
 
-  Widget buildCustomLogo(double size) {
+  Widget _buildCustomLogo(double size) {
     return ScaleTransition(
       scale: _logoScaleAnimation,
       child: SizedBox(
@@ -336,7 +396,7 @@ class _SplashScreenState extends ConsumerState<SplashScreen>
     );
   }
 
-  Widget buildAnimatedSlogan(double width) {
+  Widget _buildAnimatedSlogan(double width) {
     return AnimatedBuilder(
       animation: Listenable.merge([_textFadeInAnimation, _shimmerController]),
       builder: (_, __) {
@@ -379,7 +439,7 @@ class _SplashScreenState extends ConsumerState<SplashScreen>
         height: height,
         decoration: const BoxDecoration(
           gradient: LinearGradient(
-            colors: [Color(0xffc1e899), Color(0xffc1e899)],
+            colors: [Color(0xffc1e899), Color(0xffa8d47d)],
             begin: Alignment.topLeft,
             end: Alignment.bottomRight,
           ),
@@ -390,7 +450,7 @@ class _SplashScreenState extends ConsumerState<SplashScreen>
             child: Column(
               children: [
                 const Spacer(flex: 3),
-                buildCustomLogo(width * 0.28),
+                _buildCustomLogo(width * 0.28),
                 const SizedBox(height: 18),
                 FadeTransition(
                   opacity: _textFadeInAnimation,
@@ -405,7 +465,7 @@ class _SplashScreenState extends ConsumerState<SplashScreen>
                   ),
                 ),
                 const Spacer(flex: 2),
-                buildAnimatedSlogan(width),
+                _buildAnimatedSlogan(width),
                 const Spacer(flex: 3),
               ],
             ),
@@ -440,7 +500,7 @@ class _ArcPainter extends CustomPainter {
   final Color color;
   final double thickness;
 
-  _ArcPainter({required this.color, required this.thickness});
+  const _ArcPainter({required this.color, required this.thickness});
 
   @override
   void paint(Canvas canvas, Size size) {
@@ -451,8 +511,8 @@ class _ArcPainter extends CustomPainter {
       ..strokeCap = StrokeCap.round;
 
     final rect = Rect.fromLTWH(0, 0, size.width, size.height);
-    final startAngle = -0.6;
-    final sweepAngle = 1.8;
+    const startAngle = -0.6;
+    const sweepAngle = 1.8;
 
     canvas.drawArc(rect, startAngle, sweepAngle, false, paint);
   }
@@ -461,50 +521,61 @@ class _ArcPainter extends CustomPainter {
   bool shouldRepaint(covariant CustomPainter oldDelegate) => false;
 }
 
+// Global notification plugin instance
 final FlutterLocalNotificationsPlugin flutterLocalNotificationsPlugin =
     FlutterLocalNotificationsPlugin();
 
+// Setup FCM notifications
 Future<void> setupFCM() async {
-  FirebaseMessaging messaging = FirebaseMessaging.instance;
+  try {
+    FirebaseMessaging messaging = FirebaseMessaging.instance;
+    await messaging.requestPermission();
 
-  await messaging.requestPermission();
+    final token = await messaging.getToken();
+    print("📱 FCM Token: $token");
 
-  final token = await messaging.getToken();
-  print("📱 FCM Token: $token");
+    const AndroidInitializationSettings androidInit =
+        AndroidInitializationSettings('@mipmap/ic_launcher');
 
-  const AndroidInitializationSettings androidInit =
-      AndroidInitializationSettings('@mipmap/ic_launcher');
+    const InitializationSettings initSettings = InitializationSettings(
+      android: androidInit,
+    );
 
-  const InitializationSettings initSettings = InitializationSettings(
-    android: androidInit,
-  );
+    await flutterLocalNotificationsPlugin.initialize(initSettings);
 
-  await flutterLocalNotificationsPlugin.initialize(initSettings);
-
-  FirebaseMessaging.onMessage.listen((RemoteMessage message) {
-    if (message.notification != null) {
-      final notification = message.notification!;
-      flutterLocalNotificationsPlugin.show(
-        message.notification.hashCode,
-        notification.title,
-        notification.body,
-        const NotificationDetails(
-          android: AndroidNotificationDetails(
-            'default_channel',
-            'Default',
-            importance: Importance.max,
-            priority: Priority.high,
+    // Handle foreground messages
+    FirebaseMessaging.onMessage.listen((RemoteMessage message) {
+      if (message.notification != null) {
+        final notification = message.notification!;
+        flutterLocalNotificationsPlugin.show(
+          message.notification.hashCode,
+          notification.title,
+          notification.body,
+          const NotificationDetails(
+            android: AndroidNotificationDetails(
+              'default_channel',
+              'Default Notifications',
+              channelDescription: 'General notifications',
+              importance: Importance.max,
+              priority: Priority.high,
+            ),
           ),
-        ),
-      );
-    }
-  });
+        );
+      }
+    });
 
-  FirebaseMessaging.onMessageOpenedApp.listen((message) {
-    print("📬 User opened app from notification: ${message.data}");
-  });
+    // Handle app opened from notification
+    FirebaseMessaging.onMessageOpenedApp.listen((message) {
+      print("📬 User opened app from notification: ${message.data}");
+    });
 
-  FirebaseMessaging.onBackgroundMessage(_firebaseMessagingBackgroundHandler);
+    // Background handler
+    FirebaseMessaging.onBackgroundMessage(_firebaseMessagingBackgroundHandler);
+
+    print("✅ FCM setup completed");
+  } catch (e) {
+    print("❌ FCM setup error: $e");
+  }
 }
 
 @pragma('vm:entry-point')

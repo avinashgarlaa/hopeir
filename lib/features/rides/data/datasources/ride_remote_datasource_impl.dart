@@ -62,17 +62,12 @@ class RideRemoteDatasourceImpl extends RideRemoteDatasource {
         },
       );
 
-      print("MATCH URL:");
-      print(response.requestOptions.uri);
 
-      print("MATCHED RIDES RESPONSE:");
-      print(response.data);
 
       return List<Map<String, dynamic>>.from(
         response.data['results'],
       );
     } catch (e) {
-      print("❌ Match rides error: $e");
       rethrow;
     }
   }
@@ -121,7 +116,6 @@ class RideRemoteDatasourceImpl extends RideRemoteDatasource {
       data: {"ride": ride, "from_user": fromUser},
     );
     if (response.statusCode == 200 || response.statusCode == 201) {
-      print(response);
       return response.data;
     } else {
       throw Exception('Failed to create ride: ${response.statusCode}');

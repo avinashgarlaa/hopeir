@@ -37,7 +37,6 @@ class LocalNotificationHelper {
   }
 
   static Future<void> showNotification(String title, String body) async {
-    print("🔔 Showing Notification → $title: $body");
 
     const AndroidNotificationDetails androidDetails =
         AndroidNotificationDetails(

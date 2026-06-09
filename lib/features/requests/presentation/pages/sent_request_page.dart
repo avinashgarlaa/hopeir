@@ -100,7 +100,7 @@ class SentRequestsPage extends ConsumerWidget {
       ) {
         final request = requests[index];
 
-        final isAccepted = request.status.toLowerCase() == "accepted";
+        final isAccepted = request.status.toLowerCase() == 'accepted';
 
         final rideStatus = isAccepted
             ? ref.watch(
@@ -108,7 +108,7 @@ class SentRequestsPage extends ConsumerWidget {
                   request.rideId,
                 ),
               )
-            : "pending";
+            : request.status;
 
         final canChat = isAccepted &&
             rideStatus != "completed" &&
@@ -225,10 +225,13 @@ class _RideCard extends ConsumerWidget {
           )?.toLocal();
 
           final rideTime = startTime != null
-              ? DateFormat(
-                  'hh:mm a',
-                ).format(
-                  startTime,
+              ? DateFormat('hh:mm a').format(
+                  startTime.subtract(
+                    const Duration(
+                      hours: 5,
+                      minutes: 30,
+                    ),
+                  ),
                 )
               : '';
 
@@ -536,33 +539,32 @@ class _RideCard extends ConsumerWidget {
                           ],
                         ),
                       ),
-                      if (rideStatus != "pending")
-                        Container(
-                          padding: const EdgeInsets.symmetric(
-                            horizontal: 12,
-                            vertical: 7,
+                      Container(
+                        padding: const EdgeInsets.symmetric(
+                          horizontal: 12,
+                          vertical: 7,
+                        ),
+                        decoration: BoxDecoration(
+                          color: _rideStatusColor(
+                            rideStatus,
+                          ).withOpacity(
+                            0.12,
                           ),
-                          decoration: BoxDecoration(
-                            color: _rideStatusColor(
-                              rideStatus,
-                            ).withOpacity(
-                              0.12,
-                            ),
-                            borderRadius: BorderRadius.circular(
-                              50,
-                            ),
-                          ),
-                          child: Text(
-                            rideStatus.toUpperCase(),
-                            style: GoogleFonts.poppins(
-                              color: _rideStatusColor(
-                                rideStatus,
-                              ),
-                              fontWeight: FontWeight.w700,
-                              fontSize: 11,
-                            ),
+                          borderRadius: BorderRadius.circular(
+                            50,
                           ),
                         ),
+                        child: Text(
+                          rideStatus.toUpperCase(),
+                          style: GoogleFonts.poppins(
+                            color: _rideStatusColor(
+                              rideStatus,
+                            ),
+                            fontWeight: FontWeight.w700,
+                            fontSize: 11,
+                          ),
+                        ),
+                      )
                     ],
                   ),
                 ),

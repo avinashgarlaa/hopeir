@@ -29,15 +29,12 @@ class AuthRemoteDatasourceImpl extends AuthRemoteDatasource {
         "profile_picture":
             "https://placehold.co/400x400/CCC/31343C?text=Updated",
       };
-      print("Sending data: $data");
 
       final response = await dio.patch(
         '$baseURL/profile/$email/',
         data: data,
       );
 
-      print("Status: ${response.statusCode}");
-      print("Response data: ${response.data}");
 
       if (response.statusCode == 200 || response.statusCode == 201) {
         return Map<String, dynamic>.from(response.data);
@@ -114,10 +111,8 @@ class AuthRemoteDatasourceImpl extends AuthRemoteDatasource {
 
       return response.data;
     } on DioException catch (e) {
-      print("Dio error: ${e.response?.data}");
       return null;
     } catch (e) {
-      print("Unknown error in getProfile: $e");
       return null;
     }
   }
@@ -127,22 +122,22 @@ class AuthRemoteDatasourceImpl extends AuthRemoteDatasource {
     required String userId,
   }) async {
     try {
-      final response = await dio.get(
-        '$baseURL/profiles/$userId',
-      );
+      if (userId.isEmpty) {
+        return null;
+      }
+      final url = '$baseURL/profiles/$userId';
+
+      final response = await dio.get(url);
 
       // If backend returns an error as JSON with a "detail" key:
       if (response.data is Map && response.data['detail'] != null) {
-        print("No profile found: ${response.data['detail']}");
         return null;
       }
 
       return response.data;
     } on DioException catch (e) {
-      print("Dio error: ${e.response?.data}");
       return null;
     } catch (e) {
-      print("Unknown error in getProfile: $e");
       return null;
     }
   }

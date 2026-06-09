@@ -259,7 +259,8 @@ class RideWSController extends StateNotifier<RideWSState> {
 
     if (!_isDriver()) {
       debugPrint(
-          "🛑 Passenger blocked from starting driver tracking ride#$rideId");
+        "🛑 Passenger blocked from starting driver tracking ride#$rideId",
+      );
       return;
     }
 
@@ -270,34 +271,113 @@ class RideWSController extends StateNotifier<RideWSState> {
 
     if (!_isRideActiveForTracking(state.status)) {
       debugPrint(
-          "🛑 Ride not active for tracking ride#$rideId (status=${state.status})");
+        "🛑 Ride not active for tracking ride#$rideId "
+        "(status=${state.status})",
+      );
+
       state = state.copyWith(
         lastError:
             "Tracking not started: ride not active (status=${state.status}).",
       );
+
       return;
     }
 
+    // ===========================
+    // LOCATION SERVICE CHECK
+    // ===========================
+    final serviceEnabled = await Geolocator.isLocationServiceEnabled();
+
+    debugPrint("📍 Service Enabled => $serviceEnabled");
+
+    if (!serviceEnabled) {
+      state = state.copyWith(
+        lastError: "Location services are disabled.",
+      );
+
+      return;
+    }
+
+    // ===========================
+    // LOCATION PERMISSION CHECK
+    // ===========================
     LocationPermission perm = await Geolocator.checkPermission();
-    if (perm == LocationPermission.denied ||
-        perm == LocationPermission.deniedForever) {
+
+    debugPrint("📍 Current Permission => $perm");
+
+    if (perm == LocationPermission.denied) {
       perm = await Geolocator.requestPermission();
+
+      debugPrint("📍 Requested Permission => $perm");
     }
 
     if (perm == LocationPermission.denied ||
         perm == LocationPermission.deniedForever) {
+      debugPrint("❌ Location permission denied");
+
       state = state.copyWith(
         lastError: "Location permission denied. Live tracking not started.",
       );
+
       return;
     }
 
-    if (!isConnected) connect();
+    // ===========================
+    // TEST CURRENT POSITION
+    // ===========================
+    try {
+      final current = await Geolocator.getCurrentPosition();
 
-    state = state.copyWith(driverTrackingEnabled: true, clearError: true);
+      debugPrint(
+        "📍 CURRENT POSITION => "
+        "${current.latitude}, ${current.longitude}",
+      );
+    } catch (e) {
+      debugPrint(
+        "❌ CURRENT POSITION ERROR => $e",
+      );
+    }
 
-    /// ✅ start (or restart) safe tracking stream
-    await _startOrRestartLocationStream();
+    // ===========================
+    // ENSURE WS CONNECTED
+    // ===========================
+    if (!isConnected) {
+      debugPrint(
+        "🔌 Ride WS not connected. Connecting...",
+      );
+
+      connect();
+    }
+
+    state = state.copyWith(
+      driverTrackingEnabled: true,
+      clearError: true,
+    );
+
+    debugPrint(
+      "📍 Starting location stream ride#$rideId...",
+    );
+
+    // ===========================
+    // START STREAM
+    // ===========================
+    try {
+      await _startOrRestartLocationStream();
+
+      debugPrint(
+        "✅ Location stream started ride#$rideId",
+      );
+    } catch (e, st) {
+      debugPrint(
+        "❌ Failed to start location stream => $e",
+      );
+
+      debugPrint(st.toString());
+
+      state = state.copyWith(
+        lastError: "Failed to start location tracking: $e",
+      );
+    }
   }
 
   Future<void> _startOrRestartLocationStream() async {
@@ -476,11 +556,42 @@ class RideWSController extends StateNotifier<RideWSState> {
     final status = statusRaw.toString();
     final lower = status.toLowerCase();
 
-    if (!{'completed', 'cancelled'}.contains(lower)) {
-      LocalNotificationHelper.showNotification(
-        '🚘 Ride Update',
-        'Ride is now ${status.toUpperCase()}',
-      );
+    if (lower == state.status.toLowerCase()) {
+      return;
+    }
+
+    switch (lower) {
+      case 'completed':
+        debugPrint(
+          "🔔 Showing Notification → ✅ Ride Completed: Your ride has been completed successfully.",
+        );
+
+        LocalNotificationHelper.showNotification(
+          '✅ Ride Completed',
+          'Your ride has been completed successfully.',
+        );
+        break;
+
+      case 'cancelled':
+        debugPrint(
+          "🔔 Showing Notification → ❌ Ride Cancelled: Your ride has been cancelled.",
+        );
+
+        LocalNotificationHelper.showNotification(
+          '❌ Ride Cancelled',
+          'Your ride has been cancelled.',
+        );
+        break;
+
+      default:
+        debugPrint(
+          "🔔 Showing Notification → 🚘 Ride Update: Ride is now ${status.toUpperCase()}",
+        );
+
+        LocalNotificationHelper.showNotification(
+          '🚘 Ride Update',
+          'Ride is now ${status.toUpperCase()}',
+        );
     }
 
     final shouldClearDriver = lower == 'completed' || lower == 'cancelled';
@@ -490,6 +601,9 @@ class RideWSController extends StateNotifier<RideWSState> {
       clearDriverLocation: shouldClearDriver,
     );
 
+    debugPrint(
+      "🚘 STATE UPDATED ride#$rideId => ${state.status}",
+    );
     if (shouldClearDriver) {
       await stopDriverLiveTracking();
       disconnect();
@@ -510,24 +624,42 @@ class RideWSController extends StateNotifier<RideWSState> {
   void _handleChat(Map<String, dynamic> data) {
     final timestamp = DateTime.parse(data['timestamp']);
 
+    final senderId = data['sender_id'].toString();
+    final message = data['message'].toString();
+
     final exists = state.chatMessages.any(
       (m) =>
-          m.message == data['message'] &&
-          m.senderId == data['sender_id'].toString() &&
+          m.message == message &&
+          m.senderId == senderId &&
           m.timestamp == timestamp,
     );
+
     if (exists) return;
 
     state = state.copyWith(
       chatMessages: [
         ...state.chatMessages,
         ChatMessage(
-          message: data['message'],
-          senderId: data['sender_id'].toString(),
+          message: message,
+          senderId: senderId,
           timestamp: timestamp,
         ),
       ],
     );
+
+    // 🔔 Don't notify for my own messages
+    if (senderId != state.myUserId) {
+      final senderName = state.role == "driver" ? "Passenger" : "Driver";
+
+      LocalNotificationHelper.showNotification(
+        "💬 $senderName",
+        message,
+      );
+
+      debugPrint(
+        "🔔 Chat notification from $senderName => $message",
+      );
+    }
   }
 
   void _handleDriverLocation(Map<String, dynamic> data) {

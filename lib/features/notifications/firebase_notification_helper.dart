@@ -1,6 +1,5 @@
 import 'package:firebase_messaging/firebase_messaging.dart';
 import 'package:flutter_local_notifications/flutter_local_notifications.dart';
-import 'package:flutter/material.dart';
 
 class FirebaseNotificationHelper {
   static final FlutterLocalNotificationsPlugin _localNotificationsPlugin =
@@ -67,6 +66,5 @@ class FirebaseNotificationHelper {
   /// Call this to get and print FCM token
   static Future<void> printFcmToken() async {
     final token = await FirebaseMessaging.instance.getToken();
-    debugPrint('📲 FCM Token: $token');
   }
 }

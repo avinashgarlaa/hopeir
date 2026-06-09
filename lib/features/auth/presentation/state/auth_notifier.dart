@@ -40,8 +40,6 @@ class AuthNotifier extends StateNotifier<AuthState> {
     String password,
     BuildContext context,
   ) async {
-    print('🔍 Checking login status for email: $email');
-    print('🔍 Checking login status for password: $password');
 
     state = state.copyWith(isLoading: true, errorMessage: null);
 
@@ -53,7 +51,6 @@ class AuthNotifier extends StateNotifier<AuthState> {
       );
 
       if (loginResponse == null || loginResponse['status'] != "OK") {
-        print("❌ Invalid credentials or session expired.");
 
         state = state.copyWith(
           isLoading: false,
@@ -65,7 +62,6 @@ class AuthNotifier extends StateNotifier<AuthState> {
       // Get user profile
       final user = await getProfileUseCase(email: email);
 
-      print("👤 Fetched user ID: ${user?.userId}");
 
       state = state.copyWith(isLoading: false);
 
@@ -104,8 +100,6 @@ class AuthNotifier extends StateNotifier<AuthState> {
         });
       }
     } catch (e, stacktrace) {
-      print("🚨 Error while checking login status: $e");
-      print(stacktrace);
       state = state.copyWith(
         isLoading: false,
         errorMessage: "Something went wrong while checking login status.",
@@ -272,8 +266,6 @@ class AuthNotifier extends StateNotifier<AuthState> {
       );
       return false;
     } catch (e, stacktrace) {
-      print("Login error: $e");
-      print(stacktrace);
       state = state.copyWith(
         isLoading: false,
         errorMessage: "Something went wrong. Please try again.",
@@ -303,11 +295,9 @@ class AuthNotifier extends StateNotifier<AuthState> {
         firstname: firstname,
         lastname: lastname,
       );
-      print(user);
       state = state.copyWith(user: user, isLoading: false);
       return true;
     } catch (e) {
-      print(e);
       state = state.copyWith(isLoading: false);
       return false;
     }

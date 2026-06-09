@@ -87,14 +87,12 @@ class AuthRepositoryImpl extends AuthRepository {
     final response = await remoteDatasource.getProfileByUserId(userId: userId);
 
     if (response == null) {
-      print('❌ Invalid profile response: $response');
       return null;
     }
 
     try {
       return UserModel.fromProfileJson(response);
     } catch (e) {
-      print('Error parsing profile JSON: $e');
       return null;
     }
   }

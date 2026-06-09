@@ -1,5 +1,6 @@
 import 'dart:async';
 import 'dart:convert';
+import 'dart:math' as math;
 
 import 'package:flutter/material.dart';
 import 'package:flutter_map/flutter_map.dart';
@@ -10,7 +11,12 @@ import 'package:hop_eir/features/rides/presentation/controllers/ride_ws_controll
 import 'package:latlong2/latlong.dart';
 import 'package:http/http.dart' as http;
 
-const primaryColor = Color(0xFF2F54EB);
+const primaryColor = Color(0xFF6366F1);
+const secondaryColor = Color(0xFF1E293B);
+const accentGreen = Color(0xFF10B981);
+const accentRed = Color(0xFFEF4444);
+const accentYellow = Color(0xFFF59E0B);
+const darkBg = Color(0xFF0F172A);
 
 class RideMapPage extends ConsumerStatefulWidget {
   final double fromLat;
@@ -40,497 +46,749 @@ class _RideMapPageState extends ConsumerState<RideMapPage>
     with SingleTickerProviderStateMixin {
   List<LatLng> routePoints = [];
   bool loading = true;
-  bool _mapReady = false;
-
   LatLng? snappedStart;
   LatLng? snappedEnd;
-
   final MapController _mapController = MapController();
-
-  /// Camera follow
   bool _followDriver = true;
-  bool _didFitOnce = false;
 
-  /// Riverpod subscription
   ProviderSubscription<RideWSState>? _rideSub;
-
-  /// Smooth marker animation
-  LatLng? _animatedPos;
-  // ignore: unused_field
-  LatLng? _targetPos;
-
+  LatLng? _driverPos;
   late final AnimationController _carAnimCtrl;
 
-  /// Camera throttle so map doesn't shake
-  DateTime _lastCameraMove = DateTime.fromMillisecondsSinceEpoch(0);
+  DateTime _lastCameraMove = DateTime.now();
+  bool _isMapReady = false;
 
   @override
   void initState() {
     super.initState();
-
     _carAnimCtrl = AnimationController(
-      vsync: this,
-      duration: const Duration(milliseconds: 800),
-    );
-
+        vsync: this, duration: const Duration(milliseconds: 600));
     ref.read(rideWSControllerProvider(widget.rideId).notifier).connect();
 
-    /// ✅ Listen for driver location updates
-    _rideSub = ref.listenManual<RideWSState>(
-      rideWSControllerProvider(widget.rideId),
-      (prev, next) {
-        if (!mounted) return;
+    _rideSub =
+        ref.listenManual(rideWSControllerProvider(widget.rideId), (prev, next) {
+      if (!mounted || next.driverLatLng == null) return;
 
-        final nextDriver = next.driverLatLng;
-        if (nextDriver == null) return;
+      final newPos = next.driverLatLng!;
 
-        // ✅ first point
-        if (_animatedPos == null) {
-          setState(() {
-            _animatedPos = nextDriver;
-            _targetPos = nextDriver;
+      if (_driverPos == null) {
+        setState(() => _driverPos = newPos);
+        WidgetsBinding.instance.addPostFrameCallback((_) {
+          if (_isMapReady) _fitAll();
+        });
+        return;
+      }
+
+      _animateCar(newPos);
+
+      if (_followDriver && _isMapReady) {
+        final now = DateTime.now();
+        if (now.difference(_lastCameraMove).inMilliseconds > 1000) {
+          _lastCameraMove = now;
+          WidgetsBinding.instance.addPostFrameCallback((_) {
+            if (_isMapReady)
+              _mapController.move(newPos, _mapController.camera.zoom);
           });
-
-          // Fit once when map is ready
-          if (!_didFitOnce) {
-            _didFitOnce = true;
-            WidgetsBinding.instance.addPostFrameCallback((_) {
-              if (!mounted || !_mapReady) return;
-              _fitAll(nextDriver);
-            });
-          }
-          return;
         }
+      }
+    });
 
-        // ✅ animate smoothly between old and new
-        _startCarAnimation(to: nextDriver);
-
-        // ✅ Follow (camera) ONLY IF enabled and only every 1.2 sec
-        if (_followDriver && _mapReady) {
-          final now = DateTime.now();
-          if (now.difference(_lastCameraMove).inMilliseconds > 1200) {
-            _lastCameraMove = now;
-
-            WidgetsBinding.instance.addPostFrameCallback((_) {
-              if (!mounted || !_mapReady) return;
-              _mapController.move(nextDriver, _mapController.camera.zoom);
-            });
-          }
-        }
-      },
-    );
-
-    _prepareRoute();
+    _loadRoute();
   }
 
   @override
   void dispose() {
     _rideSub?.close();
-    _rideSub = null;
-
     _carAnimCtrl.dispose();
     super.dispose();
   }
 
-  // ───────────────────────────
-  // ✅ Car Smooth Animation
-  // ───────────────────────────
-  void _startCarAnimation({required LatLng to}) {
-    final from = _animatedPos!;
-    _targetPos = to;
-
+  void _animateCar(LatLng to) {
+    final from = _driverPos!;
     _carAnimCtrl.stop();
     _carAnimCtrl.reset();
-
     _carAnimCtrl.addListener(() {
-      final p = Curves.easeInOut.transform(_carAnimCtrl.value);
-
-      final lat = from.latitude + (to.latitude - from.latitude) * p;
-      final lng = from.longitude + (to.longitude - from.longitude) * p;
-
-      if (!mounted) return;
-      setState(() => _animatedPos = LatLng(lat, lng));
+      final t = Curves.easeOutCubic.transform(_carAnimCtrl.value);
+      final lat = from.latitude + (to.latitude - from.latitude) * t;
+      final lng = from.longitude + (to.longitude - from.longitude) * t;
+      if (mounted) setState(() => _driverPos = LatLng(lat, lng));
     });
-
     _carAnimCtrl.forward();
   }
 
-  // ───────────────────────────
-  // ROUTE
-  // ───────────────────────────
-  Future<void> _prepareRoute() async {
+  Future<void> _loadRoute() async {
     try {
-      final start = await _snap(widget.fromLat, widget.fromLng);
-      final end = await _snap(widget.toLat, widget.toLng);
-
-      snappedStart = start;
-      snappedEnd = end;
-
-      if (!mounted) return;
-      setState(() {});
-
-      await _fetchRoute(start, end);
+      snappedStart = await _snapToRoad(widget.fromLat, widget.fromLng);
+      snappedEnd = await _snapToRoad(widget.toLat, widget.toLng);
+      await _fetchRoute(snappedStart!, snappedEnd!);
     } catch (e) {
-      debugPrint("❌ _prepareRoute error: $e");
-      if (!mounted) return;
-      setState(() => loading = false);
+      setState(() {
+        routePoints = [
+          LatLng(widget.fromLat, widget.fromLng),
+          LatLng(widget.toLat, widget.toLng)
+        ];
+        loading = false;
+      });
     }
   }
 
-  Future<LatLng> _snap(double lat, double lng) async {
-    final res = await http.get(
-      Uri.parse('https://router.project-osrm.org/nearest/v1/driving/$lng,$lat'),
-    );
-    final data = json.decode(res.body);
-    final loc = data['waypoints'][0]['location'];
-    return LatLng(loc[1], loc[0]);
+  Future<LatLng> _snapToRoad(double lat, double lng) async {
+    try {
+      final res = await http
+          .get(Uri.parse(
+              'https://router.project-osrm.org/nearest/v1/driving/$lng,$lat'))
+          .timeout(const Duration(seconds: 3));
+      final data = json.decode(res.body);
+      if (data['waypoints']?.isNotEmpty == true) {
+        final loc = data['waypoints'][0]['location'];
+        return LatLng(loc[1], loc[0]);
+      }
+    } catch (e) {}
+    return LatLng(lat, lng);
   }
 
   Future<void> _fetchRoute(LatLng start, LatLng end) async {
-    final res = await http.get(
-      Uri.parse(
-        'https://router.project-osrm.org/route/v1/driving/'
-        '${start.longitude},${start.latitude};'
-        '${end.longitude},${end.latitude}'
-        '?overview=full&geometries=geojson',
-      ),
-    );
-
-    final data = json.decode(res.body);
-    final coords = data['routes'][0]['geometry']['coordinates'] as List;
-
-    if (!mounted) return;
-
-    setState(() {
-      routePoints = coords.map((c) => LatLng(c[1], c[0])).toList();
-      loading = false;
-    });
-
-    WidgetsBinding.instance.addPostFrameCallback((_) {
-      if (!mounted || !_mapReady) return;
-      _fitRoute();
-    });
+    try {
+      final res = await http
+          .get(Uri.parse(
+              'https://router.project-osrm.org/route/v1/driving/${start.longitude},${start.latitude};${end.longitude},${end.latitude}?overview=full&geometries=geojson'))
+          .timeout(const Duration(seconds: 8));
+      final data = json.decode(res.body);
+      if (data['routes']?.isNotEmpty == true) {
+        final coords = data['routes'][0]['geometry']['coordinates'] as List;
+        setState(() {
+          routePoints = coords.map((c) => LatLng(c[1], c[0])).toList();
+          loading = false;
+        });
+        WidgetsBinding.instance.addPostFrameCallback((_) {
+          if (_isMapReady) _fitAll();
+        });
+      } else {
+        throw Exception();
+      }
+    } catch (e) {
+      setState(() {
+        routePoints = [start, end];
+        loading = false;
+      });
+    }
   }
 
-  // ───────────────────────────
-  // CAMERA HELPERS
-  // ───────────────────────────
-  LatLngBounds _boundsWithDriver(LatLng? driver) {
-    final points = <LatLng>[];
-    if (routePoints.isNotEmpty) points.addAll(routePoints);
+  void _fitAll() {
+    if (!_isMapReady) return;
+    final points = [...routePoints];
     if (snappedStart != null) points.add(snappedStart!);
     if (snappedEnd != null) points.add(snappedEnd!);
-    if (driver != null) points.add(driver);
+    if (_driverPos != null) points.add(_driverPos!);
 
-    if (points.isEmpty) {
-      return LatLngBounds(
-        LatLng(widget.fromLat, widget.fromLng),
-        LatLng(widget.toLat, widget.toLng),
-      );
-    }
+    if (points.isEmpty) return;
 
-    final b = LatLngBounds.fromPoints(points);
-    final latPad = (b.north - b.south) * 0.25;
-    final lngPad = (b.east - b.west) * 0.25;
+    final bounds = LatLngBounds.fromPoints(points);
+    final latPad = (bounds.north - bounds.south) * 0.15;
+    final lngPad = (bounds.east - bounds.west) * 0.15;
 
-    return LatLngBounds(
-      LatLng(b.south - latPad, b.west - lngPad),
-      LatLng(b.north + latPad, b.east + lngPad),
-    );
-  }
-
-  LatLngBounds _boundsRouteOnly() {
-    if (routePoints.isEmpty) {
-      return LatLngBounds(
-        LatLng(widget.fromLat, widget.fromLng),
-        LatLng(widget.toLat, widget.toLng),
-      );
-    }
-    return LatLngBounds.fromPoints(routePoints);
-  }
-
-  void _fitRoute() {
-    if (!_mapReady) return;
     _mapController.fitCamera(
       CameraFit.bounds(
-        bounds: _boundsRouteOnly(),
-        padding: const EdgeInsets.all(48),
+        bounds: LatLngBounds(
+          LatLng(bounds.south - latPad, bounds.west - lngPad),
+          LatLng(bounds.north + latPad, bounds.east + lngPad),
+        ),
+        padding: const EdgeInsets.all(40),
       ),
     );
   }
 
-  void _fitAll(LatLng? driver) {
-    if (!_mapReady) return;
-    _mapController.fitCamera(
-      CameraFit.bounds(
-        bounds: _boundsWithDriver(driver),
-        padding: const EdgeInsets.all(48),
-      ),
-    );
+  String _getStatus(String status) {
+    switch (status.toLowerCase()) {
+      case 'accepted':
+        return 'DRIVER ASSIGNED';
+      case 'arriving':
+        return 'ARRIVING SOON';
+      case 'started':
+        return 'TRIP IN PROGRESS';
+      case 'ongoing':
+        return 'ON THE WAY';
+      default:
+        return status.toUpperCase();
+    }
   }
 
-  bool _isRideActive(String status) {
-    final s = status.toLowerCase();
-    return s == 'accepted' ||
-        s == 'arriving' ||
-        s == 'started' ||
-        s == 'ongoing' ||
-        s == 'in_progress';
+  Color _getStatusColor(String status) {
+    switch (status.toLowerCase()) {
+      case 'accepted':
+        return accentGreen;
+      case 'arriving':
+        return accentYellow;
+      case 'started':
+        return primaryColor;
+      case 'ongoing':
+        return primaryColor;
+      default:
+        return Colors.grey;
+    }
   }
 
-  // ───────────────────────────
-  // UI
-  // ───────────────────────────
   @override
   Widget build(BuildContext context) {
-    final screenWidth = MediaQuery.of(context).size.width;
-    final isTablet = screenWidth > 600;
+    final rideState = ref.watch(rideWSControllerProvider(widget.rideId));
+    final isLive = _driverPos != null;
+    final carPos = _driverPos ?? rideState.driverLatLng;
 
-    final rideWSState = ref.watch(rideWSControllerProvider(widget.rideId));
-
-    final driverLatLng = rideWSState.driverLatLng;
-    final carPos = _animatedPos ?? driverLatLng;
-
-    final rideActive = _isRideActive(rideWSState.status);
-    final liveOn = carPos != null;
+    if (loading) {
+      return Scaffold(
+        body: Container(
+          decoration: const BoxDecoration(
+            gradient: LinearGradient(
+              begin: Alignment.topLeft,
+              end: Alignment.bottomRight,
+              colors: [darkBg, Color(0xFF1E1B4B)],
+            ),
+          ),
+          child: Center(
+            child: Column(
+              mainAxisAlignment: MainAxisAlignment.center,
+              children: [
+                Container(
+                  padding: const EdgeInsets.all(20),
+                  decoration: BoxDecoration(
+                    shape: BoxShape.circle,
+                    color: primaryColor.withOpacity(0.2),
+                  ),
+                  child: const CircularProgressIndicator(
+                    color: Colors.white,
+                    strokeWidth: 3,
+                  ),
+                ),
+                const SizedBox(height: 24),
+                Text(
+                  'Loading your route...',
+                  style: GoogleFonts.poppins(
+                    color: Colors.white,
+                    fontSize: 16,
+                    fontWeight: FontWeight.w500,
+                  ),
+                ),
+              ],
+            ),
+          ),
+        ),
+      );
+    }
 
     return Scaffold(
-      backgroundColor: const Color(0xFFF5F7FF),
-      body: loading
-          ? const Center(child: CircularProgressIndicator())
-          : SafeArea(
-              child: Column(
-                children: [
-                  // HEADER
-                  Padding(
-                    padding:
-                        const EdgeInsets.only(left: 20, right: 10, bottom: 8),
-                    child: Row(
-                      children: [
-                        Text(
-                          "Your Route",
-                          style: GoogleFonts.luckiestGuy(
-                            fontWeight: FontWeight.w300,
-                            fontSize: isTablet ? 32 : 28,
-                            color: primaryColor,
-                          ),
-                        ),
-                        const Spacer(),
-                        IconButton(
-                          onPressed: () => Navigator.pop(context),
-                          icon: const Icon(
-                            FontAwesomeIcons.backward,
-                            color: primaryColor,
-                          ),
-                        ),
-                      ],
+      body: Stack(
+        children: [
+          // Full Screen Map
+          FlutterMap(
+            mapController: _mapController,
+            options: MapOptions(
+              onMapReady: () {
+                _isMapReady = true;
+                _fitAll();
+              },
+              initialCameraFit: CameraFit.bounds(
+                bounds: LatLngBounds.fromPoints(routePoints),
+                padding: const EdgeInsets.all(40),
+              ),
+              interactionOptions: const InteractionOptions(
+                flags: InteractiveFlag.all,
+              ),
+            ),
+            children: [
+              // Working Tile Layer - OpenStreetMap
+              TileLayer(
+                urlTemplate: 'https://tile.openstreetmap.org/{z}/{x}/{y}.png',
+                userAgentPackageName: 'com.hopeir.app',
+                fallbackUrl:
+                    'https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png',
+              ),
+
+              // Route Line
+              if (routePoints.isNotEmpty)
+                PolylineLayer(
+                  polylines: [
+                    // Outer glow
+                    Polyline(
+                      points: routePoints,
+                      strokeWidth: 8,
+                      color: primaryColor.withOpacity(0.3),
                     ),
-                  ),
-
-                  // STATUS BAR
-                  Padding(
-                    padding: const EdgeInsets.symmetric(horizontal: 16),
-                    child: Container(
-                      padding: const EdgeInsets.symmetric(
-                        horizontal: 12,
-                        vertical: 10,
-                      ),
-                      decoration: BoxDecoration(
-                        color: Colors.white,
-                        borderRadius: BorderRadius.circular(16),
-                        boxShadow: const [
-                          BoxShadow(blurRadius: 10, color: Colors.black12),
-                        ],
-                      ),
-                      child: Row(
-                        children: [
-                          _statusPill(
-                            icon: Icons.directions_car,
-                            label: rideWSState.status.toUpperCase(),
-                            color: rideActive ? Colors.green : Colors.orange,
-                          ),
-                          const SizedBox(width: 6),
-                          _statusPill(
-                            icon: Icons.circle,
-                            label: liveOn ? "LIVE" : "OFF",
-                            color: liveOn ? Colors.green : Colors.red,
-                          ),
-                          const Spacer(),
-                          _iconBtn(
-                            tooltip: "Fit Route",
-                            icon: Icons.alt_route,
-                            onTap: _fitRoute,
-                          ),
-                          _iconBtn(
-                            tooltip: "Fit All",
-                            icon: Icons.center_focus_strong,
-                            onTap: () => _fitAll(carPos),
-                          ),
-                          _iconBtn(
-                            tooltip: _followDriver
-                                ? "Disable Follow"
-                                : "Enable Follow",
-                            icon:
-                                _followDriver ? Icons.gps_off : Icons.gps_fixed,
-                            onTap: () {
-                              setState(() => _followDriver = !_followDriver);
-                              if (_followDriver &&
-                                  carPos != null &&
-                                  _mapReady) {
-                                _mapController.move(
-                                  carPos,
-                                  _mapController.camera.zoom,
-                                );
-                              }
-                            },
-                          ),
-                        ],
-                      ),
+                    // Main route
+                    Polyline(
+                      points: routePoints,
+                      strokeWidth: 4,
+                      color: primaryColor,
                     ),
-                  ),
+                    // Inner highlight
+                    Polyline(
+                      points: routePoints,
+                      strokeWidth: 2,
+                      color: Colors.white.withOpacity(0.4),
+                    ),
+                  ],
+                ),
 
-                  const SizedBox(height: 10),
-
-                  if (!liveOn)
-                    Padding(
-                      padding: const EdgeInsets.only(bottom: 8),
-                      child: Text(
-                        "Waiting for driver live location...",
-                        style: GoogleFonts.poppins(
-                          fontSize: 12,
-                          color: Colors.grey,
-                          fontWeight: FontWeight.w600,
-                        ),
-                      ),
+              MarkerLayer(
+                markers: [
+                  // Centered Pickup Marker
+                  if (snappedStart != null)
+                    Marker(
+                      point: snappedStart!,
+                      width: 100,
+                      height: 100,
+                      alignment: Alignment.center,
+                      child: _buildPickupMarker(),
                     ),
 
-                  // MAP
-                  Expanded(
-                    flex: 6,
-                    child: Padding(
-                      padding: const EdgeInsets.symmetric(horizontal: 16),
-                      child: ClipRRect(
-                        borderRadius: BorderRadius.circular(20),
-                        child: FlutterMap(
-                          mapController: _mapController,
-                          options: MapOptions(
-                            onMapReady: () {
-                              _mapReady = true;
-                              WidgetsBinding.instance.addPostFrameCallback((_) {
-                                if (!mounted) return;
-                                if (carPos != null) {
-                                  _fitAll(carPos);
-                                } else {
-                                  _fitRoute();
-                                }
-                              });
-                            },
-                            initialCameraFit: CameraFit.bounds(
-                              bounds: _boundsWithDriver(carPos),
-                              padding: const EdgeInsets.all(40),
-                            ),
-                          ),
-                          children: [
-                            TileLayer(
-                              urlTemplate:
-                                  'https://tile.openstreetmap.org/{z}/{x}/{y}.png',
-                              userAgentPackageName: 'com.hopeir.app',
-                            ),
-                            PolylineLayer(
-                              polylines: [
-                                Polyline(
-                                  points: routePoints,
-                                  strokeWidth: 8,
-                                  color: Colors.black.withOpacity(0.12),
-                                ),
-                                Polyline(
-                                  points: routePoints,
-                                  strokeWidth: 5,
-                                  color: primaryColor,
-                                ),
-                              ],
-                            ),
-                            MarkerLayer(
-                              markers: [
-                                if (snappedStart != null)
-                                  _hopPin(snappedStart!, Colors.green),
-                                if (snappedEnd != null)
-                                  _hopPin(snappedEnd!, Colors.red),
-
-                                /// ✅ ONLY CAR MOVES (MAP DOESN'T MOVE)
-                                if (carPos != null) _carMarker(carPos),
-                              ],
-                            ),
-                          ],
-                        ),
-                      ),
+                  // Centered Dropoff Marker
+                  if (snappedEnd != null)
+                    Marker(
+                      point: snappedEnd!,
+                      width: 100,
+                      height: 100,
+                      alignment: Alignment.center,
+                      child: _buildDropoffMarker(),
                     ),
-                  ),
 
-                  // INFO
-                  Expanded(
-                    flex: 2,
-                    child: Padding(
-                      padding: const EdgeInsets.symmetric(horizontal: 16),
-                      child: Column(
-                        mainAxisAlignment: MainAxisAlignment.center,
-                        children: [
-                          _infoRow(
-                            Icons.location_on,
-                            widget.fromName,
-                            Colors.green,
-                          ),
-                          const SizedBox(height: 12),
-                          _infoRow(
-                            Icons.location_on,
-                            widget.toName,
-                            Colors.red,
-                          ),
-                          const SizedBox(height: 10),
-                          if (rideWSState.lastError != null)
-                            Text(
-                              rideWSState.lastError!,
-                              maxLines: 2,
-                              overflow: TextOverflow.ellipsis,
-                              style: const TextStyle(
-                                fontSize: 12,
-                                color: Colors.red,
-                              ),
-                            ),
-                        ],
-                      ),
+                  // Animated Car Marker
+                  if (carPos != null)
+                    Marker(
+                      point: carPos,
+                      width: 60,
+                      height: 60,
+                      alignment: Alignment.center,
+                      child: _buildCarMarker(),
                     ),
+                ],
+              ),
+            ],
+          ),
+
+          // Gradient Overlay for Top
+          Positioned(
+            top: 0,
+            left: 0,
+            right: 0,
+            child: Container(
+              height: 120,
+              decoration: BoxDecoration(
+                gradient: LinearGradient(
+                  begin: Alignment.topCenter,
+                  end: Alignment.bottomCenter,
+                  colors: [
+                    Colors.black.withOpacity(0.6),
+                    Colors.transparent,
+                  ],
+                ),
+              ),
+            ),
+          ),
+
+          // Gradient Overlay for Bottom
+          Positioned(
+            bottom: 0,
+            left: 0,
+            right: 0,
+            child: Container(
+              height: 80,
+              decoration: BoxDecoration(
+                gradient: LinearGradient(
+                  begin: Alignment.bottomCenter,
+                  end: Alignment.topCenter,
+                  colors: [
+                    Colors.black.withOpacity(0.4),
+                    Colors.transparent,
+                  ],
+                ),
+              ),
+            ),
+          ),
+
+          // Back Button
+          Positioned(
+            top: 50,
+            left: 16,
+            child: Container(
+              decoration: BoxDecoration(
+                color: Colors.black.withOpacity(0.8),
+                borderRadius: BorderRadius.circular(16),
+                border: Border.all(
+                  color: Colors.white.withOpacity(0.15),
+                ),
+                boxShadow: [
+                  BoxShadow(
+                    color: Colors.black.withOpacity(0.2),
+                    blurRadius: 10,
+                    offset: const Offset(0, 4),
                   ),
                 ],
               ),
+              child: IconButton(
+                icon: const Icon(Icons.arrow_back_ios_new_rounded,
+                    color: Colors.white, size: 18),
+                onPressed: () => Navigator.pop(context),
+              ),
             ),
-    );
-  }
+          ),
 
-  // ───────── UI Components ─────────
+          // Status Card
+          Positioned(
+            top: 50,
+            left: 80,
+            right: 16,
+            child: TweenAnimationBuilder(
+              tween: Tween<double>(begin: 0, end: 1),
+              duration: const Duration(milliseconds: 500),
+              builder: (context, value, child) {
+                return Opacity(
+                  opacity: value,
+                  child: Transform.translate(
+                    offset: Offset(0, 20 * (1 - value)),
+                    child: child,
+                  ),
+                );
+              },
+              child: Container(
+                padding: const EdgeInsets.all(14),
+                decoration: BoxDecoration(
+                  color: Colors.black.withOpacity(0.85),
+                  borderRadius: BorderRadius.circular(20),
+                  border: Border.all(
+                    color: primaryColor.withOpacity(0.3),
+                  ),
+                  boxShadow: [
+                    BoxShadow(
+                      color: Colors.black.withOpacity(0.3),
+                      blurRadius: 20,
+                      offset: const Offset(0, 8),
+                    ),
+                  ],
+                ),
+                child: Row(
+                  children: [
+                    Container(
+                      padding: const EdgeInsets.all(10),
+                      decoration: BoxDecoration(
+                        color:
+                            _getStatusColor(rideState.status).withOpacity(0.2),
+                        borderRadius: BorderRadius.circular(12),
+                      ),
+                      child: Icon(
+                        Icons.directions_car_rounded,
+                        color: _getStatusColor(rideState.status),
+                        size: 22,
+                      ),
+                    ),
+                    const SizedBox(width: 12),
+                    Expanded(
+                      child: Column(
+                        crossAxisAlignment: CrossAxisAlignment.start,
+                        children: [
+                          Text(
+                            _getStatus(rideState.status),
+                            style: GoogleFonts.poppins(
+                              color: Colors.white,
+                              fontSize: 13,
+                              fontWeight: FontWeight.bold,
+                            ),
+                          ),
+                          const SizedBox(height: 2),
+                          Row(
+                            children: [
+                              Container(
+                                width: 6,
+                                height: 6,
+                                decoration: BoxDecoration(
+                                  shape: BoxShape.circle,
+                                  color: isLive ? accentGreen : Colors.grey,
+                                ),
+                              ),
+                              const SizedBox(width: 6),
+                              Text(
+                                isLive
+                                    ? 'Live location active'
+                                    : 'Waiting for driver signal...',
+                                style: GoogleFonts.poppins(
+                                  color: Colors.white70,
+                                  fontSize: 10,
+                                ),
+                              ),
+                            ],
+                          ),
+                        ],
+                      ),
+                    ),
+                    Container(
+                      padding: const EdgeInsets.symmetric(
+                          horizontal: 10, vertical: 5),
+                      decoration: BoxDecoration(
+                        gradient: LinearGradient(
+                          colors: isLive
+                              ? [accentGreen, accentGreen.withOpacity(0.7)]
+                              : [Colors.grey, Colors.grey.withOpacity(0.7)],
+                        ),
+                        borderRadius: BorderRadius.circular(12),
+                      ),
+                      child: Text(
+                        isLive ? 'LIVE' : 'OFFLINE',
+                        style: GoogleFonts.poppins(
+                          color: Colors.white,
+                          fontSize: 10,
+                          fontWeight: FontWeight.bold,
+                        ),
+                      ),
+                    ),
+                  ],
+                ),
+              ),
+            ),
+          ),
 
-  Widget _statusPill({
-    required IconData icon,
-    required String label,
-    required Color color,
-  }) {
-    return Container(
-      padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 7),
-      decoration: BoxDecoration(
-        color: color.withOpacity(0.12),
-        borderRadius: BorderRadius.circular(24),
-        border: Border.all(color: color.withOpacity(0.4)),
-      ),
-      child: Row(
-        children: [
-          Icon(icon, color: color, size: 16),
-          const SizedBox(width: 6),
-          Text(
-            label,
-            style: TextStyle(
-              fontSize: 12,
-              fontWeight: FontWeight.w800,
-              color: color,
+          // Right Side Control Buttons
+          Positioned(
+            bottom: 140,
+            right: 16,
+            child: Column(
+              children: [
+                Container(
+                  decoration: BoxDecoration(
+                    color: Colors.black.withOpacity(0.8),
+                    borderRadius: BorderRadius.circular(16),
+                    border: Border.all(
+                      color: Colors.white.withOpacity(0.15),
+                    ),
+                    boxShadow: [
+                      BoxShadow(
+                        color: Colors.black.withOpacity(0.2),
+                        blurRadius: 10,
+                        offset: const Offset(0, 4),
+                      ),
+                    ],
+                  ),
+                  child: IconButton(
+                    icon: Icon(
+                      _followDriver
+                          ? Icons.gps_fixed_rounded
+                          : Icons.gps_off_rounded,
+                      color: _followDriver ? primaryColor : Colors.white,
+                      size: 20,
+                    ),
+                    onPressed: () {
+                      setState(() => _followDriver = !_followDriver);
+                      if (_followDriver && carPos != null && _isMapReady) {
+                        _mapController.move(carPos, _mapController.camera.zoom);
+                      }
+                    },
+                  ),
+                ),
+                const SizedBox(height: 12),
+                Container(
+                  decoration: BoxDecoration(
+                    color: Colors.black.withOpacity(0.8),
+                    borderRadius: BorderRadius.circular(16),
+                    border: Border.all(
+                      color: Colors.white.withOpacity(0.15),
+                    ),
+                    boxShadow: [
+                      BoxShadow(
+                        color: Colors.black.withOpacity(0.2),
+                        blurRadius: 10,
+                        offset: const Offset(0, 4),
+                      ),
+                    ],
+                  ),
+                  child: IconButton(
+                    icon: const Icon(Icons.center_focus_strong_rounded,
+                        color: Colors.white, size: 20),
+                    onPressed: () => _fitAll(),
+                  ),
+                ),
+              ],
+            ),
+          ),
+
+          // Bottom Info Card
+          Positioned(
+            bottom: 20,
+            left: 16,
+            right: 16,
+            child: TweenAnimationBuilder(
+              tween: Tween<double>(begin: 0, end: 1),
+              duration: const Duration(milliseconds: 500),
+              builder: (context, value, child) {
+                return Opacity(
+                  opacity: value,
+                  child: Transform.translate(
+                    offset: Offset(0, 20 * (1 - value)),
+                    child: child,
+                  ),
+                );
+              },
+              child: Container(
+                padding: const EdgeInsets.all(16),
+                decoration: BoxDecoration(
+                  color: Colors.black.withOpacity(0.92),
+                  borderRadius: BorderRadius.circular(24),
+                  border: Border.all(
+                    color: Colors.white.withOpacity(0.1),
+                  ),
+                  boxShadow: [
+                    BoxShadow(
+                      color: Colors.black.withOpacity(0.4),
+                      blurRadius: 20,
+                      offset: const Offset(0, 8),
+                    ),
+                  ],
+                ),
+                child: Column(
+                  children: [
+                    // Pickup Location
+                    Container(
+                      padding: const EdgeInsets.all(12),
+                      decoration: BoxDecoration(
+                        gradient: LinearGradient(
+                          colors: [
+                            accentGreen.withOpacity(0.15),
+                            accentGreen.withOpacity(0.05)
+                          ],
+                          begin: Alignment.topLeft,
+                          end: Alignment.bottomRight,
+                        ),
+                        borderRadius: BorderRadius.circular(16),
+                        border: Border.all(color: accentGreen.withOpacity(0.2)),
+                      ),
+                      child: Row(
+                        children: [
+                          Container(
+                            padding: const EdgeInsets.all(10),
+                            decoration: BoxDecoration(
+                              gradient: LinearGradient(
+                                colors: [
+                                  accentGreen,
+                                  accentGreen.withOpacity(0.8)
+                                ],
+                                begin: Alignment.topLeft,
+                                end: Alignment.bottomRight,
+                              ),
+                              borderRadius: BorderRadius.circular(12),
+                              boxShadow: [
+                                BoxShadow(
+                                  color: accentGreen.withOpacity(0.4),
+                                  blurRadius: 8,
+                                ),
+                              ],
+                            ),
+                            child: const Icon(
+                              Icons.circle,
+                              color: Colors.white,
+                              size: 14,
+                            ),
+                          ),
+                          const SizedBox(width: 14),
+                          Expanded(
+                            child: Column(
+                              crossAxisAlignment: CrossAxisAlignment.start,
+                              children: [
+                                Text(
+                                  'PICKUP LOCATION',
+                                  style: GoogleFonts.poppins(
+                                    color: accentGreen,
+                                    fontSize: 10,
+                                    fontWeight: FontWeight.bold,
+                                    letterSpacing: 0.5,
+                                  ),
+                                ),
+                                const SizedBox(height: 4),
+                                Text(
+                                  widget.fromName,
+                                  style: GoogleFonts.poppins(
+                                    color: Colors.white,
+                                    fontSize: 13,
+                                    fontWeight: FontWeight.w600,
+                                  ),
+                                  maxLines: 1,
+                                  overflow: TextOverflow.ellipsis,
+                                ),
+                              ],
+                            ),
+                          ),
+                        ],
+                      ),
+                    ),
+                    const SizedBox(height: 12),
+                    // Dropoff Location
+                    Container(
+                      padding: const EdgeInsets.all(12),
+                      decoration: BoxDecoration(
+                        gradient: LinearGradient(
+                          colors: [
+                            accentRed.withOpacity(0.15),
+                            accentRed.withOpacity(0.05)
+                          ],
+                          begin: Alignment.topLeft,
+                          end: Alignment.bottomRight,
+                        ),
+                        borderRadius: BorderRadius.circular(16),
+                        border: Border.all(color: accentRed.withOpacity(0.2)),
+                      ),
+                      child: Row(
+                        children: [
+                          Container(
+                            padding: const EdgeInsets.all(10),
+                            decoration: BoxDecoration(
+                              gradient: LinearGradient(
+                                colors: [accentRed, accentRed.withOpacity(0.8)],
+                                begin: Alignment.topLeft,
+                                end: Alignment.bottomRight,
+                              ),
+                              borderRadius: BorderRadius.circular(12),
+                              boxShadow: [
+                                BoxShadow(
+                                  color: accentRed.withOpacity(0.4),
+                                  blurRadius: 8,
+                                ),
+                              ],
+                            ),
+                            child: const Icon(
+                              Icons.flag,
+                              color: Colors.white,
+                              size: 14,
+                            ),
+                          ),
+                          const SizedBox(width: 14),
+                          Expanded(
+                            child: Column(
+                              crossAxisAlignment: CrossAxisAlignment.start,
+                              children: [
+                                Text(
+                                  'DROPOFF LOCATION',
+                                  style: GoogleFonts.poppins(
+                                    color: accentRed,
+                                    fontSize: 10,
+                                    fontWeight: FontWeight.bold,
+                                    letterSpacing: 0.5,
+                                  ),
+                                ),
+                                const SizedBox(height: 4),
+                                Text(
+                                  widget.toName,
+                                  style: GoogleFonts.poppins(
+                                    color: Colors.white,
+                                    fontSize: 13,
+                                    fontWeight: FontWeight.w600,
+                                  ),
+                                  maxLines: 1,
+                                  overflow: TextOverflow.ellipsis,
+                                ),
+                              ],
+                            ),
+                          ),
+                        ],
+                      ),
+                    ),
+                  ],
+                ),
+              ),
             ),
           ),
         ],
@@ -538,90 +796,161 @@ class _RideMapPageState extends ConsumerState<RideMapPage>
     );
   }
 
-  Widget _iconBtn({
-    required String tooltip,
-    required IconData icon,
-    required VoidCallback onTap,
-  }) {
-    return Padding(
-      padding: const EdgeInsets.only(left: 6),
-      child: InkWell(
-        borderRadius: BorderRadius.circular(12),
-        onTap: onTap,
-        child: Tooltip(
-          message: tooltip,
-          child: Container(
-            padding: const EdgeInsets.all(10),
+  Widget _buildPickupMarker() {
+    return Center(
+      child: Column(
+        mainAxisSize: MainAxisSize.min,
+        children: [
+          Container(
+            padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
             decoration: BoxDecoration(
-              color: primaryColor.withOpacity(0.10),
-              borderRadius: BorderRadius.circular(12),
+              gradient: LinearGradient(
+                colors: [accentGreen, accentGreen.withOpacity(0.8)],
+                begin: Alignment.topLeft,
+                end: Alignment.bottomRight,
+              ),
+              borderRadius: BorderRadius.circular(20),
+              boxShadow: [
+                BoxShadow(
+                  color: accentGreen.withOpacity(0.4),
+                  blurRadius: 12,
+                  offset: const Offset(0, 4),
+                ),
+              ],
             ),
-            child: Icon(icon, color: primaryColor, size: 20),
+            child: Row(
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                const Icon(Icons.location_on, color: Colors.white, size: 14),
+                const SizedBox(width: 6),
+                Text(
+                  'PICKUP',
+                  style: GoogleFonts.poppins(
+                    color: Colors.white,
+                    fontSize: 11,
+                    fontWeight: FontWeight.bold,
+                  ),
+                ),
+              ],
+            ),
           ),
-        ),
-      ),
-    );
-  }
-
-  Marker _hopPin(LatLng point, Color color) {
-    return Marker(
-      point: point,
-      width: 50,
-      height: 50,
-      alignment: Alignment.center,
-      child: Transform.translate(
-        offset: const Offset(0, -22),
-        child: Icon(Icons.location_on, size: 44, color: color),
-      ),
-    );
-  }
-
-  /// ✅ Uber-like small car
-  Marker _carMarker(LatLng point) {
-    return Marker(
-      point: point,
-      width: 28,
-      height: 28,
-      alignment: Alignment.center,
-      child: Container(
-        decoration: const BoxDecoration(
-          shape: BoxShape.circle,
-          color: Colors.white,
-          boxShadow: [
-            BoxShadow(blurRadius: 5, color: Colors.black26),
-          ],
-        ),
-        padding: const EdgeInsets.all(4),
-        child: const Icon(
-          Icons.directions_car,
-          size: 14,
-          color: Colors.black,
-        ),
-      ),
-    );
-  }
-
-  Widget _infoRow(IconData icon, String text, Color color) {
-    return Container(
-      padding: const EdgeInsets.all(14),
-      decoration: BoxDecoration(
-        color: Colors.white,
-        borderRadius: BorderRadius.circular(14),
-        boxShadow: const [
-          BoxShadow(color: Colors.black12, blurRadius: 8),
+          const SizedBox(height: 4),
+          Container(
+            padding: const EdgeInsets.all(8),
+            decoration: BoxDecoration(
+              color: accentGreen,
+              shape: BoxShape.circle,
+              boxShadow: [
+                BoxShadow(
+                  color: accentGreen.withOpacity(0.6),
+                  blurRadius: 20,
+                  spreadRadius: 4,
+                ),
+              ],
+            ),
+            child: Container(
+              width: 12,
+              height: 12,
+              decoration: const BoxDecoration(
+                color: Colors.white,
+                shape: BoxShape.circle,
+              ),
+            ),
+          ),
         ],
       ),
-      child: Row(
+    );
+  }
+
+  Widget _buildDropoffMarker() {
+    return Center(
+      child: Column(
+        mainAxisSize: MainAxisSize.min,
         children: [
-          Icon(icon, color: color),
-          const SizedBox(width: 12),
-          Expanded(
-            child: Text(
-              text,
-              style: const TextStyle(fontSize: 16, fontWeight: FontWeight.w600),
+          Container(
+            padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
+            decoration: BoxDecoration(
+              gradient: LinearGradient(
+                colors: [accentRed, accentRed.withOpacity(0.8)],
+                begin: Alignment.topLeft,
+                end: Alignment.bottomRight,
+              ),
+              borderRadius: BorderRadius.circular(20),
+              boxShadow: [
+                BoxShadow(
+                  color: accentRed.withOpacity(0.4),
+                  blurRadius: 12,
+                  offset: const Offset(0, 4),
+                ),
+              ],
+            ),
+            child: Row(
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                const Icon(Icons.flag, color: Colors.white, size: 14),
+                const SizedBox(width: 6),
+                Text(
+                  'DROP',
+                  style: GoogleFonts.poppins(
+                    color: Colors.white,
+                    fontSize: 11,
+                    fontWeight: FontWeight.bold,
+                  ),
+                ),
+              ],
+            ),
+          ),
+          const SizedBox(height: 4),
+          Container(
+            padding: const EdgeInsets.all(8),
+            decoration: BoxDecoration(
+              color: accentRed,
+              shape: BoxShape.circle,
+              boxShadow: [
+                BoxShadow(
+                  color: accentRed.withOpacity(0.6),
+                  blurRadius: 20,
+                  spreadRadius: 4,
+                ),
+              ],
+            ),
+            child: Container(
+              width: 12,
+              height: 12,
+              decoration: const BoxDecoration(
+                color: Colors.white,
+                shape: BoxShape.circle,
+              ),
             ),
           ),
         ],
+      ),
+    );
+  }
+
+  Widget _buildCarMarker() {
+    return AnimatedContainer(
+      duration: const Duration(milliseconds: 300),
+      decoration: BoxDecoration(
+        shape: BoxShape.circle,
+        gradient: LinearGradient(
+          colors: [primaryColor, primaryColor.withOpacity(0.7)],
+          begin: Alignment.topLeft,
+          end: Alignment.bottomRight,
+        ),
+        boxShadow: [
+          BoxShadow(
+            color: primaryColor.withOpacity(0.6),
+            blurRadius: 20,
+            spreadRadius: 4,
+          ),
+        ],
+      ),
+      padding: const EdgeInsets.all(12),
+      child: const Icon(
+        Icons.directions_car_rounded,
+        color: Colors.white,
+        size: 22,
       ),
     );
   }

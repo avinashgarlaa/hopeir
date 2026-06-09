@@ -8,6 +8,7 @@ import 'package:hop_eir/features/rides/domain/usecases/route_service.dart';
 import 'package:hop_eir/features/rides/presentation/controllers/ride_ws_controller.dart';
 import 'package:hop_eir/features/rides/presentation/pages/post_ride_page.dart';
 import 'package:hop_eir/features/rides/presentation/providers/ride_provider.dart';
+import 'package:hop_eir/features/rides/presentation/widgets/message_banner.dart';
 import 'package:hop_eir/features/stations/domain/entities/station.dart';
 import 'package:hop_eir/features/stations/presentation/providers/providers.dart';
 import 'package:hop_eir/features/vehicles/presentation/provider/vehicle_providers.dart';
@@ -20,11 +21,13 @@ Future<void> showPostRideDialog(BuildContext context, WidgetRef ref) async {
   Station? startStation;
   Station? destinationStation;
   int? selectedSeats;
+  bool isCreating = false;
 
   const primaryColor = Color.fromRGBO(137, 177, 98, 1);
 
   await showDialog(
     context: context,
+    barrierDismissible: false,
     builder: (context) {
       return GestureDetector(
         onTap: () => FocusScope.of(context).unfocus(),
@@ -182,6 +185,8 @@ Future<void> showPostRideDialog(BuildContext context, WidgetRef ref) async {
 
             // Create Ride
             void createRide() async {
+              if (isCreating) return; // Prevent multiple clicks
+
               if (!formKey.currentState!.validate() ||
                   startStation == null ||
                   destinationStation == null ||
@@ -193,6 +198,8 @@ Future<void> showPostRideDialog(BuildContext context, WidgetRef ref) async {
                 return;
               }
 
+              setState(() => isCreating = true);
+
               final user = ref.read(authNotifierProvider).user;
               final vehicle = ref.read(vehicleControllerProvider).vehicle;
 
@@ -200,6 +207,7 @@ Future<void> showPostRideDialog(BuildContext context, WidgetRef ref) async {
                 ScaffoldMessenger.of(context).showSnackBar(
                   const SnackBar(content: Text('User or Vehicle missing')),
                 );
+                setState(() => isCreating = false);
                 return;
               }
 
@@ -232,15 +240,24 @@ Future<void> showPostRideDialog(BuildContext context, WidgetRef ref) async {
               if (createdRide != null && context.mounted) {
                 // WebSocket
                 ref.read(rideWSControllerProvider(createdRide.id).notifier);
-                print("🔌 WS connected for ride ID: ${createdRide.id}");
 
                 // Refresh rides list
                 ref.invalidate(createdRidesProvider(user.userId));
 
-                Navigator.pop(context);
-                ScaffoldMessenger.of(context).showSnackBar(
-                  const SnackBar(content: Text('✅ Ride Created Successfully')),
-                );
+                if (context.mounted) {
+                  Navigator.pop(context);
+                  showPopUp(context,
+                      icon: Icons.check, message: "Ride Created Successfully");
+                }
+              } else {
+                setState(() => isCreating = false);
+                if (context.mounted) {
+                  ScaffoldMessenger.of(context).showSnackBar(
+                    const SnackBar(
+                        content:
+                            Text('Failed to create ride. Please try again.')),
+                  );
+                }
               }
             }
 
@@ -259,13 +276,17 @@ Future<void> showPostRideDialog(BuildContext context, WidgetRef ref) async {
                       _selectorTile(
                         label: startStation?.name ?? "Select Start Station",
                         icon: Icons.location_on_outlined,
-                        onTap: () => showStationSelector(isStart: true),
+                        onTap: isCreating
+                            ? null
+                            : () => showStationSelector(isStart: true),
                       ),
                       const SizedBox(height: 12),
                       _selectorTile(
                         label: destinationStation?.name ?? "Select Destination",
                         icon: Icons.flag_outlined,
-                        onTap: () => showStationSelector(isStart: false),
+                        onTap: isCreating
+                            ? null
+                            : () => showStationSelector(isStart: false),
                       ),
                       const SizedBox(height: 12),
                       _selectorTile(
@@ -273,7 +294,7 @@ Future<void> showPostRideDialog(BuildContext context, WidgetRef ref) async {
                             ? "Select Seats"
                             : "$selectedSeats Seat${selectedSeats! > 1 ? 's' : ''}",
                         icon: Icons.event_seat_outlined,
-                        onTap: showSeatsSelector,
+                        onTap: isCreating ? null : showSeatsSelector,
                       ),
                       const SizedBox(height: 12),
                       _buildInputField(
@@ -284,7 +305,7 @@ Future<void> showPostRideDialog(BuildContext context, WidgetRef ref) async {
                       ),
                       const SizedBox(height: 12),
                       ElevatedButton.icon(
-                        onPressed: pickDateTime,
+                        onPressed: isCreating ? null : pickDateTime,
                         style: ElevatedButton.styleFrom(
                           padding: const EdgeInsets.symmetric(
                               horizontal: 16, vertical: 14),
@@ -312,32 +333,54 @@ Future<void> showPostRideDialog(BuildContext context, WidgetRef ref) async {
               ),
               actions: [
                 TextButton(
-                  onPressed: () => Navigator.pop(context),
+                  onPressed: isCreating ? null : () => Navigator.pop(context),
                   child: Text(
                     'Cancel',
                     style: GoogleFonts.poppins(
                       fontWeight: FontWeight.w500,
-                      color: Colors.black54,
+                      color: isCreating ? Colors.grey : Colors.black54,
                     ),
                   ),
                 ),
                 ElevatedButton(
-                  onPressed: createRide,
+                  onPressed: isCreating ? null : createRide,
                   style: ElevatedButton.styleFrom(
-                    backgroundColor: Colors.black87,
+                    backgroundColor: isCreating ? Colors.grey : Colors.black87,
                     padding: const EdgeInsets.symmetric(
                         horizontal: 20, vertical: 14),
                     shape: RoundedRectangleBorder(
                       borderRadius: BorderRadius.circular(14),
                     ),
                   ),
-                  child: Text(
-                    "Post Ride",
-                    style: GoogleFonts.poppins(
-                      fontWeight: FontWeight.w600,
-                      color: Colors.white,
-                    ),
-                  ),
+                  child: isCreating
+                      ? Row(
+                          mainAxisSize: MainAxisSize.min,
+                          children: [
+                            SizedBox(
+                              width: 20,
+                              height: 20,
+                              child: CircularProgressIndicator(
+                                strokeWidth: 2,
+                                color: Colors.white,
+                              ),
+                            ),
+                            const SizedBox(width: 12),
+                            Text(
+                              "Creating...",
+                              style: GoogleFonts.poppins(
+                                fontWeight: FontWeight.w600,
+                                color: Colors.white,
+                              ),
+                            ),
+                          ],
+                        )
+                      : Text(
+                          "Post Ride",
+                          style: GoogleFonts.poppins(
+                            fontWeight: FontWeight.w600,
+                            color: Colors.white,
+                          ),
+                        ),
                 ),
               ],
             );
@@ -376,7 +419,7 @@ Widget _buildInputField({
 Widget _selectorTile({
   required String label,
   required IconData icon,
-  required VoidCallback onTap,
+  required VoidCallback? onTap,
 }) {
   const primaryColor = Color.fromRGBO(137, 177, 98, 1);
   return InkWell(
@@ -388,15 +431,25 @@ Widget _selectorTile({
       decoration: BoxDecoration(
         border: Border.all(color: Colors.grey.shade300),
         borderRadius: BorderRadius.circular(12),
+        color: onTap == null ? Colors.grey.shade50 : Colors.white,
       ),
       child: Row(
         children: [
-          Icon(icon, color: primaryColor),
+          Icon(icon, color: onTap == null ? Colors.grey : primaryColor),
           const SizedBox(width: 16),
           Expanded(
-            child: Text(label, style: GoogleFonts.poppins(fontSize: 16)),
+            child: Text(
+              label,
+              style: GoogleFonts.poppins(
+                fontSize: 16,
+                color: onTap == null ? Colors.grey : Colors.black87,
+              ),
+            ),
           ),
-          const Icon(Icons.arrow_drop_down, color: Colors.grey),
+          Icon(
+            Icons.arrow_drop_down,
+            color: onTap == null ? Colors.grey : Colors.grey,
+          ),
         ],
       ),
     ),

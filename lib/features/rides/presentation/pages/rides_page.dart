@@ -170,7 +170,6 @@ class _RidesPageState extends ConsumerState<RidesPage> {
         );
       },
       error: (error, stackTrace) {
-        debugPrint("Station Error: $error");
         debugPrintStack(stackTrace: stackTrace);
 
         ScaffoldMessenger.of(context).showSnackBar(

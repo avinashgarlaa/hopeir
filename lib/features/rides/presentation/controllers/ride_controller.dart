@@ -52,11 +52,9 @@ class RideController extends AutoDisposeAsyncNotifier<List<Ride>> {
         timeWindowMinutes: timeWindowMinutes,
       );
 
-      print("✅ Matched rides: $matchedRides");
 
       return matchedRides;
     } catch (e) {
-      print("❌ Match rides error: $e");
       rethrow;
     }
   }
@@ -84,11 +82,9 @@ class RideController extends AutoDisposeAsyncNotifier<List<Ride>> {
         startTime: startTime,
         endTime: endTime,
       );
-      print(newRide);
       await refreshRides();
       return newRide;
     } catch (e, st) {
-      print(e);
       state = AsyncError(e, st);
       return null;
     }
@@ -105,7 +101,6 @@ class RideController extends AutoDisposeAsyncNotifier<List<Ride>> {
         ride: ride,
       );
 
-      print('✅ Ride request response: $response');
 
       // 🔥 DRF wraps payload inside "data"
       final data = response['data'];
@@ -134,7 +129,6 @@ class RideController extends AutoDisposeAsyncNotifier<List<Ride>> {
         requestedAt: data['requested_at']?.toString(),
       );
 
-      print('📨 Injecting RideRequest into RideRequest WS → $newRequest');
 
       /// 🔥 HTTP → WS bridge (request list only)
       ref
@@ -145,9 +139,6 @@ class RideController extends AutoDisposeAsyncNotifier<List<Ride>> {
 
       return response;
     } on DioException catch (e) {
-      print('❌ Ride request failed');
-      print('STATUS: ${e.response?.statusCode}');
-      print('DATA: ${e.response?.data}');
       rethrow;
     }
   }

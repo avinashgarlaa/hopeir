@@ -38,7 +38,6 @@ class VehicleRemoteDataSourceImpl implements VehicleRemoteDataSource {
 
       if (response.statusCode == 200) {
         final List<dynamic> dataList = response.data;
-        print(dataList[0]);
         if (dataList.isNotEmpty) {
           return VehicleModel.fromJson(dataList[0]);
         } else {
@@ -61,7 +60,6 @@ class VehicleRemoteDataSourceImpl implements VehicleRemoteDataSource {
 
       if (response.statusCode == 200) {
         final List<dynamic> dataList = response.data;
-        print(dataList[0]);
         if (dataList.isNotEmpty) {
           return VehicleModel.fromJson(dataList[0]);
         } else {

@@ -33,15 +33,20 @@ class RideRequest {
   factory RideRequest.fromMap(Map<String, dynamic> map) {
     return RideRequest(
       id: map['id']?.toString() ?? map['request_id']?.toString() ?? '',
-      rideId: map['ride_id'],
-      passengerId: map['from_user__user_id']?.toString() ??
+      rideId: int.tryParse(
+            map['ride_id']?.toString() ?? '0',
+          ) ??
+          0,
+      passengerId: map['from_user_id']?.toString() ??
+          map['from_user__user_id']?.toString() ??
           map['passenger_id']?.toString() ??
           '',
-      passengerName: map['from_user__first_name']?.toString() ??
+      passengerName: map['from_user_name']?.toString() ??
+          map['from_user__first_name']?.toString() ??
           map['passenger_name']?.toString() ??
           'Unknown',
-      driverId: map['ride__user__user_id']?.toString() ??
-          map['driver_id']?.toString() ??
+      driverId: map['driver_id']?.toString() ??
+          map['ride__user__user_id']?.toString() ??
           '',
       status: map['request_status']?.toString() ??
           map['status']?.toString() ??
@@ -49,7 +54,6 @@ class RideRequest {
       requestedAt: map['requested_at']?.toString(),
     );
   }
-
   // ======================================================
   // COPY
   // ======================================================

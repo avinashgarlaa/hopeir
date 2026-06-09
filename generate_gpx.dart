@@ -16,7 +16,6 @@ Future<void> main() async {
       '$startLng,$startLat;$endLng,$endLat'
       '?overview=full&geometries=geojson';
 
-  print("Fetching route: $url");
   final res = await http.get(Uri.parse(url));
 
   if (res.statusCode != 200) {
@@ -61,5 +60,4 @@ Future<void> main() async {
   final file = File("route_vantage_to_crh.gpx");
   await file.writeAsString(buffer.toString());
 
-  print("✅ GPX created: ${file.path}");
 }

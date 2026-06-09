@@ -25,15 +25,20 @@ class RideRequestModel {
   factory RideRequestModel.fromJson(Map<String, dynamic> json) {
     return RideRequestModel(
       id: json['id']?.toString() ?? json['request_id']?.toString() ?? '',
-      rideId: json['ride_id'],
-      passengerId: json['from_user__user_id']?.toString() ??
+      rideId: int.tryParse(
+            json['ride_id']?.toString() ?? '0',
+          ) ??
+          0,
+      passengerId: json['from_user_id']?.toString() ??
+          json['from_user__user_id']?.toString() ??
           json['passenger_id']?.toString() ??
           '',
-      passengerName: json['from_user__first_name']?.toString() ??
+      passengerName: json['from_user_name']?.toString() ??
+          json['from_user__first_name']?.toString() ??
           json['passenger_name']?.toString() ??
           'Unknown',
-      driverId: json['ride__user__user_id']?.toString() ??
-          json['driver_id']?.toString() ??
+      driverId: json['driver_id']?.toString() ??
+          json['ride__user__user_id']?.toString() ??
           '',
       status: json['request_status']?.toString() ??
           json['status']?.toString() ??

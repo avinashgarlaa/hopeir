@@ -69,7 +69,6 @@ class RideRepositoryImpl extends RideRepository {
     final response = await remoteDatasource.getRequests(
       currentUserId: currentUserId,
     );
-    print("fetched requests are : $response");
     return response;
   }
 

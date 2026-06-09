@@ -4,7 +4,9 @@ import 'dart:async';
 import 'dart:convert';
 import 'dart:math';
 
+import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
+import 'package:hop_eir/features/auth/presentation/providers/auth_provider.dart';
 import 'package:hop_eir/features/notifications/notification_service.dart';
 import 'package:hop_eir/features/requests/presentation/controllers/passanger_ride_ws_controller.dart';
 import 'package:web_socket_channel/web_socket_channel.dart';
@@ -19,6 +21,20 @@ final rideRequestWSControllerProvider = StateNotifierProvider.family<
     RideRequestWSController, RideRequestWSState, String>((ref, userId) {
   return RideRequestWSController(ref, userId);
 });
+
+final Set<int> _connectedRideSockets = {};
+
+void markRideSocketConnected(int rideId) {
+  _connectedRideSockets.add(rideId);
+}
+
+void markRideSocketDisconnected(int rideId) {
+  _connectedRideSockets.remove(rideId);
+}
+
+bool isRideSocketConnected(int rideId) {
+  return _connectedRideSockets.contains(rideId);
+}
 
 class RideRequestWSController extends StateNotifier<RideRequestWSState> {
   final Ref ref;
@@ -35,7 +51,6 @@ class RideRequestWSController extends StateNotifier<RideRequestWSState> {
   static const int _maxReconnectAttempts = 7;
 
   // ✅ track which ride sockets we already triggered
-  final Set<int> _connectedRideSockets = {};
 
   RideRequestWSController(this.ref, this.userId)
       : super(RideRequestWSState.initial()) {
@@ -45,14 +60,6 @@ class RideRequestWSController extends StateNotifier<RideRequestWSState> {
   // ======================================================
   // LOG HELPERS (BEST LOGGING)
   // ======================================================
-  void _log(String msg) => print("[RideReqWS][$userId] $msg");
-
-  void _logError(String msg, [Object? e, StackTrace? st]) {
-    _log("❌ $msg ${e != null ? "-> $e" : ""}");
-    if (st != null) {
-      _log("STACKTRACE:\n$st");
-    }
-  }
 
   // ======================================================
   // CONNECT
@@ -74,7 +81,6 @@ class RideRequestWSController extends StateNotifier<RideRequestWSState> {
     _isConnecting = true;
 
     final uri = _buildWsUri();
-    _log("🔌 Connecting → $uri");
 
     state = state.copyWith(
       status: _reconnectAttempts > 0
@@ -83,16 +89,15 @@ class RideRequestWSController extends StateNotifier<RideRequestWSState> {
     );
 
     try {
-      // cleanup old
       await _subscription?.cancel();
       _subscription = null;
 
       try {
         _channel?.sink.close(status.normalClosure);
       } catch (_) {}
+
       _channel = null;
 
-      // connect
       _channel = WebSocketChannel.connect(uri);
 
       await _channel!.ready;
@@ -100,7 +105,7 @@ class RideRequestWSController extends StateNotifier<RideRequestWSState> {
       _subscription = _channel!.stream.listen(
         _handleMessageSafely,
         onDone: () {
-          _log(
+          debugPrint(
             "🚫 WS CLOSED "
             "closeCode=${_channel?.closeCode} "
             "closeReason=${_channel?.closeReason}",
@@ -109,7 +114,10 @@ class RideRequestWSController extends StateNotifier<RideRequestWSState> {
           _handleDisconnectSafely();
         },
         onError: (error) {
-          _logError("WS stream error", error);
+          debugPrint(
+            "❌ WS ERROR => $error",
+          );
+
           _handleDisconnectSafely();
         },
         cancelOnError: true,
@@ -119,14 +127,18 @@ class RideRequestWSController extends StateNotifier<RideRequestWSState> {
         status: ConnectionStatus.connected,
         error: null,
       );
-      _log("✅ WebSocket READY "
-          "user=$userId "
-          "time=${DateTime.now().toIso8601String()}");
+
+      debugPrint(
+        "✅ WebSocket READY "
+        "user=$userId "
+        "time=${DateTime.now().toIso8601String()}",
+      );
 
       _reconnectAttempts = 0;
-      _log("✅ Connected");
     } catch (e, st) {
-      _logError("Connection failed", e, st);
+      debugPrint("❌ CONNECT FAILED => $e");
+      debugPrint(st.toString());
+
       _scheduleReconnect();
     } finally {
       _isConnecting = false;
@@ -139,61 +151,77 @@ class RideRequestWSController extends StateNotifier<RideRequestWSState> {
   void _handleMessageSafely(dynamic message) {
     if (_isDisposed) return;
 
-    final msgString = message?.toString() ?? "";
+    final msgString = message?.toString() ?? '';
 
-    _log("📩 Message received "
-        "(${msgString.length} chars)");
+    debugPrint("📩 Message received (${msgString.length} chars)");
+    debugPrint("📦 RAW => $msgString");
 
-    _log("📦 RAW: $msgString");
-
-    Map<String, dynamic>? decoded;
+    Map<String, dynamic> decoded;
 
     try {
       final raw = jsonDecode(msgString);
 
       if (raw is! Map) {
-        _log("⚠️ Ignored: json is not an object/map");
+        debugPrint("⚠️ Ignored non-map message");
         return;
       }
 
-      decoded = raw.cast<String, dynamic>();
+      decoded = Map<String, dynamic>.from(raw);
     } catch (e) {
-      // backend may send non-json frames sometimes
-      _log("⚠️ Ignored: non-json message");
+      debugPrint("⚠️ Invalid JSON message => $e");
       return;
     }
 
     final type = decoded['type']?.toString();
-    final data = decoded['data'];
 
     if (type == null) {
-      _log("⚠️ Missing 'type' in message");
+      debugPrint("⚠️ Missing message type");
       return;
     }
 
     switch (type) {
       case 'initial_state':
-        _handleInitialStateSafely(data);
+        debugPrint("📥 initial_state");
+        _handleInitialStateSafely(decoded['data']);
         break;
 
       case 'ride_request_updated':
-        _log("UPDATE DATA => ${jsonEncode(data)}");
-        _handleRequestUpdatedSafely(data);
+        debugPrint(
+          "🔄 ride_request_updated => "
+          "${jsonEncode(decoded['data'])}",
+        );
+
+        _handleRequestUpdatedSafely(decoded['data']);
+        break;
+
+      case 'ride_request_created':
+        debugPrint(
+          "🆕 ride_request_created => "
+          "${jsonEncode(decoded['data'])}",
+        );
+
+        _handleRideRequestCreated(decoded['data']);
         break;
 
       case 'error':
-        final message = decoded['message']?.toString() ?? 'Unknown error';
+        final errorMessage =
+            decoded['message']?.toString() ?? 'Unknown backend error';
 
-        _log("❌ Backend Error => $message");
+        debugPrint(
+          "❌ Backend error => $errorMessage",
+        );
 
         LocalNotificationHelper.showNotification(
-          "Ride Request Error",
-          message,
+          'Ride Request Error',
+          errorMessage,
         );
         break;
 
       default:
-        _log("⚠️ Unknown type → $type");
+        debugPrint(
+          "⚠️ Unknown WS message type => $type\n"
+          "Payload => ${jsonEncode(decoded)}",
+        );
     }
   }
 
@@ -203,11 +231,8 @@ class RideRequestWSController extends StateNotifier<RideRequestWSState> {
   void addMyRequest(RideRequest request) {
     if (_isDisposed) return;
 
-    _log("➕ LOCAL addMyRequest requestId=${request.id}");
-
     final exists = state.incomingRequests.any((r) => r.id == request.id);
     if (exists) {
-      _log("⚠️ Request already exists, skipping");
       return;
     }
 
@@ -224,11 +249,26 @@ class RideRequestWSController extends StateNotifier<RideRequestWSState> {
   // INITIAL STATE
   // ======================================================
   void _handleInitialStateSafely(dynamic data) {
-    if (_isDisposed || data is! List) return;
+    if (_isDisposed) return;
+
+    if (data is! List) {
+      debugPrint("⚠️ initial_state payload is not a List");
+      return;
+    }
 
     try {
-      final requests =
-          data.map((e) => RideRequestModel.fromJson(e).toEntity()).toList();
+      final requests = data
+          .map(
+            (e) => RideRequestModel.fromJson(
+              Map<String, dynamic>.from(e),
+            ).toEntity(),
+          )
+          .toList();
+
+      debugPrint(
+        "📥 Initial state received "
+        "requests=${requests.length}",
+      );
 
       state = state.copyWith(
         incomingRequests: requests,
@@ -237,10 +277,20 @@ class RideRequestWSController extends StateNotifier<RideRequestWSState> {
       );
 
       for (final req in requests) {
+        debugPrint(
+          "📋 Request "
+          "id=${req.id} "
+          "ride=${req.rideId} "
+          "status=${req.status}",
+        );
+
         _connectRideSocketIfAccepted(req);
       }
     } catch (e, st) {
-      _logError("initial_state parse error", e, st);
+      debugPrint(
+        "❌ Failed to parse initial_state: $e",
+      );
+      debugPrint(st.toString());
     }
   }
 
@@ -251,10 +301,10 @@ class RideRequestWSController extends StateNotifier<RideRequestWSState> {
     if (_isDisposed) return;
 
     try {
-      _log("📥 ride_request_updated => ${jsonEncode(data)}");
-
       if (data == null || data is! Map) {
-        _log("⚠️ Invalid ride_request_updated payload");
+        debugPrint(
+          "⚠️ Invalid ride_request_updated payload",
+        );
         return;
       }
 
@@ -268,10 +318,10 @@ class RideRequestWSController extends StateNotifier<RideRequestWSState> {
         (r) => r.id.toString() == updated.id.toString(),
       );
 
-      if (index == -1) {
-        updatedList.add(updated);
-      } else {
+      if (index != -1) {
         updatedList[index] = updated;
+      } else {
+        updatedList.add(updated);
       }
 
       state = state.copyWith(
@@ -280,32 +330,52 @@ class RideRequestWSController extends StateNotifier<RideRequestWSState> {
         hasUnread: true,
       );
 
-      _log(
+      debugPrint(
         "🔄 Updated request "
         "id=${updated.id} "
         "ride=${updated.rideId} "
         "status=${updated.status}",
       );
 
-      final isNewRequest = index == -1;
+      final newStatus = updated.status.toLowerCase();
 
-      if (isNewRequest && updated.status.toLowerCase() == "pending") {
-        LocalNotificationHelper.showNotification(
-          "🚘 New Ride Request",
-          "Passenger requested your ride",
-        );
+      // Current logged in user
+      final myUserId = ref.read(authNotifierProvider).user?.userId.toString();
 
-        _log("🔔 Notification sent");
-      }
+      // ✅ Request Accepted (Passenger only)
+      if (newStatus == "accepted") {
+        if (myUserId != null && updated.passengerId.toString() == myUserId) {
+          debugPrint(
+            "🔔 Showing Notification → ✅ Ride Request Accepted",
+          );
 
-      if (updated.status.toLowerCase() == "accepted") {
+          LocalNotificationHelper.showNotification(
+            "✅ Ride Request Accepted",
+            "Driver accepted your ride request.",
+          );
+        }
+
         _connectRideSocketIfAccepted(updated);
       }
+
+      // ✅ Request Rejected (Passenger only)
+      if (newStatus == "rejected") {
+        if (myUserId != null && updated.passengerId.toString() == myUserId) {
+          debugPrint(
+            "🔔 Showing Notification → ❌ Ride Request Rejected",
+          );
+
+          LocalNotificationHelper.showNotification(
+            "❌ Ride Request Rejected",
+            "Driver rejected your ride request.",
+          );
+        }
+      }
     } catch (e, st) {
-      _log("❌ ride_request_updated parse failed");
-      _log("DATA => ${jsonEncode(data)}");
-      _log("ERROR => $e");
-      _log("$st");
+      debugPrint(
+        "❌ Failed to handle ride_request_updated: $e",
+      );
+      debugPrint(st.toString());
     }
   }
 
@@ -316,33 +386,41 @@ class RideRequestWSController extends StateNotifier<RideRequestWSState> {
     if (_isDisposed) return;
 
     try {
-      final reqStatus = (req.status).toString().toLowerCase();
+      final reqStatus = req.status.toString().toLowerCase();
       if (reqStatus != "accepted") return;
 
       final int? rideId = int.tryParse(req.rideId.toString());
-      if (rideId == null) {
-        _log("⚠️ rideId parse failed for requestId=${req.id}");
-        return;
-      }
+      if (rideId == null) return;
 
-      // ✅ IMPORTANT FILTER: don't connect if ride already completed/cancelled
-      // This is a TOP-LEVEL function imported from passenger_ride_ws_controller.dart
       if (isRideFinalCached(rideId)) {
-        _log(
-            "🔒 Ride #$rideId already final (cached). Skip passenger WS trigger.");
+        debugPrint(
+          "🔒 Ride #$rideId already final (cached). Skip passenger WS trigger.",
+        );
         return;
       }
 
-      // prevent repeated triggers
-      if (_connectedRideSockets.contains(rideId)) return;
-      _connectedRideSockets.add(rideId);
+      if (isRideSocketConnected(rideId)) {
+        debugPrint(
+          "⚠️ PassengerRideWS already running for rideId=$rideId",
+        );
+        return;
+      }
 
-      // ✅ Trigger passenger ride controller
-      ref.read(passengerRideWSProvider(rideId).notifier);
+      markRideSocketConnected(rideId);
 
-      _log("🚀 Triggered PassengerRideWSController for rideId=$rideId");
+      // ✅ ACTUALLY START THE PASSENGER WS
+      ref.read(
+        passengerRideWSProvider(rideId).notifier,
+      );
+
+      debugPrint(
+        "🚀 Triggered PassengerRideWSController for rideId=$rideId",
+      );
     } catch (e, st) {
-      _logError("_connectRideSocketIfAccepted error", e, st);
+      debugPrint(
+        "❌ Failed to trigger PassengerRideWSController: $e",
+      );
+      debugPrint(st.toString());
     }
   }
 
@@ -350,13 +428,15 @@ class RideRequestWSController extends StateNotifier<RideRequestWSState> {
   // SEND ACTION
   // ======================================================
   Future<void> respondToRequest({
-    required String requestId,
+    required int requestId,
     required bool isAccepted,
   }) async {
     if (_isDisposed) return;
 
     if (state.status != ConnectionStatus.connected || _channel == null) {
-      _log("⚠️ respondToRequest called but WS not connected");
+      debugPrint(
+        "❌ Cannot respond. WS not connected.",
+      );
       return;
     }
 
@@ -366,13 +446,93 @@ class RideRequestWSController extends StateNotifier<RideRequestWSState> {
         "request_id": requestId,
       };
 
-      _log("📤 SENDING => ${jsonEncode(payload)}");
+      debugPrint(
+        "📤 Sending request response => "
+        "${jsonEncode(payload)}",
+      );
 
-      _channel!.sink.add(jsonEncode(payload));
+      _channel!.sink.add(
+        jsonEncode(payload),
+      );
 
-      _log("📤 SENT action=${payload["action"]} requestId=$requestId");
+      debugPrint(
+        "✅ Request response sent "
+        "requestId=$requestId "
+        "action=${isAccepted ? "accept" : "reject"}",
+      );
     } catch (e, st) {
-      _logError("send error", e, st);
+      debugPrint(
+        "❌ Failed to send request response: $e",
+      );
+      debugPrint(st.toString());
+
+      LocalNotificationHelper.showNotification(
+        "Request Error",
+        "Failed to send response to request",
+      );
+    }
+  }
+
+  void _handleRideRequestCreated(dynamic data) {
+    try {
+      if (data == null || data is! Map) {
+        debugPrint("⚠️ Invalid ride_request_created payload");
+        return;
+      }
+
+      final payload = Map<String, dynamic>.from(data);
+
+      final request = RideRequest(
+        id: payload['request_id'].toString(),
+        rideId: payload['ride_id'],
+        passengerId: payload['from_user']?['id']?.toString() ?? '',
+        passengerName: payload['from_user']?['name']?.toString() ?? 'Unknown',
+        driverId: payload['driver_id']?.toString() ?? '',
+        status: payload['request_status']?.toString() ?? 'pending',
+        requestedAt: payload['requested_at']?.toString(),
+      );
+
+      final exists = state.incomingRequests.any(
+        (r) => r.id.toString() == request.id.toString(),
+      );
+
+      if (exists) {
+        debugPrint(
+          "⚠️ Request already exists id=${request.id}",
+        );
+        return;
+      }
+
+      state = state.copyWith(
+        incomingRequests: [
+          request,
+          ...state.incomingRequests,
+        ],
+        lastUpdated: DateTime.now(),
+        hasUnread: true,
+      );
+
+      debugPrint(
+        "🆕 New request added "
+        "id=${request.id} "
+        "ride=${request.rideId} "
+        "passenger=${request.passengerName}",
+      );
+
+      debugPrint(
+        "🔔 Showing Notification → 🚘 New Ride Request: "
+        "${request.passengerName} requested your ride",
+      );
+
+      LocalNotificationHelper.showNotification(
+        "🚘 New Ride Request",
+        "${request.passengerName} requested your ride",
+      );
+    } catch (e, st) {
+      debugPrint(
+        "❌ Failed to handle ride_request_created: $e",
+      );
+      debugPrint(st.toString());
     }
   }
 
@@ -381,16 +541,8 @@ class RideRequestWSController extends StateNotifier<RideRequestWSState> {
   // ======================================================
   void _handleDisconnectSafely() {
     if (_isDisposed) {
-      _log("🚫 WS closed because controller is disposed");
       return;
     }
-
-    _log(
-      "🚫 WS disconnected | "
-      "connected=${state.isConnected} | "
-      "attempts=$_reconnectAttempts | "
-      "time=${DateTime.now().toIso8601String()}",
-    );
 
     try {
       _subscription?.cancel();
@@ -399,6 +551,9 @@ class RideRequestWSController extends StateNotifier<RideRequestWSState> {
 
     _channel = null;
 
+    state = state.copyWith(
+      status: ConnectionStatus.reconnecting,
+    );
     _scheduleReconnect();
   }
 
@@ -410,14 +565,11 @@ class RideRequestWSController extends StateNotifier<RideRequestWSState> {
         status: ConnectionStatus.disconnected,
         error: "Max reconnect attempts reached",
       );
-      _log("🛑 Max reconnect attempts reached");
       return;
     }
 
     _reconnectAttempts++;
     final delay = Duration(seconds: min(_reconnectAttempts * 2, 12));
-
-    _log("🔁 Reconnect in ${delay.inSeconds}s (attempt=$_reconnectAttempts)");
 
     _reconnectTimer?.cancel();
     _reconnectTimer = Timer(delay, () {
@@ -430,8 +582,6 @@ class RideRequestWSController extends StateNotifier<RideRequestWSState> {
   // ======================================================
   @override
   void dispose() {
-    _log("🗑 RideRequestWSController DISPOSED");
-
     _isDisposed = true;
 
     try {
