@@ -2,28 +2,17 @@ import '../../domain/entities/station.dart';
 
 class StationModel extends Station {
   StationModel({
-    required int id,
-    required String name,
-    required double latitude,
-    required double longitude,
-    required String address,
-    String? sector,
-    required String city,
-    required String country,
-    String? postalCode,
-    String? landmark,
-  }) : super(
-          id: id,
-          name: name,
-          latitude: latitude,
-          longitude: longitude,
-          address: address,
-          sector: sector,
-          city: city,
-          country: country,
-          postalCode: postalCode,
-          landmark: landmark,
-        );
+    required super.id,
+    required super.name,
+    required super.latitude,
+    required super.longitude,
+    required super.address,
+    super.sector,
+    required super.city,
+    required super.country,
+    super.postalCode,
+    super.landmark,
+  });
 
   factory StationModel.fromJson(Map<String, dynamic> json) {
     return StationModel(

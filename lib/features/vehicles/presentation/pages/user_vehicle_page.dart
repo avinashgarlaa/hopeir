@@ -3,7 +3,6 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:google_fonts/google_fonts.dart';
 import 'package:font_awesome_flutter/font_awesome_flutter.dart';
 import 'package:hop_eir/features/auth/presentation/providers/auth_provider.dart';
-import 'package:hop_eir/features/rides/presentation/pages/rides_page.dart';
 import 'package:hop_eir/features/vehicles/domain/entities/vehicle.dart';
 import 'package:hop_eir/features/vehicles/presentation/provider/vehicle_providers.dart';
 
@@ -456,8 +455,8 @@ class _VehiclePageState extends ConsumerState<VehiclePage> {
     return Container(
       padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 14),
       decoration: BoxDecoration(
-        gradient: LinearGradient(
-          colors: [const Color(0xFFF8F9FC), Colors.white],
+        gradient: const LinearGradient(
+          colors: [Color(0xFFF8F9FC), Colors.white],
           begin: Alignment.topLeft,
           end: Alignment.bottomRight,
         ),

@@ -176,7 +176,7 @@ class _UsernameScreenState extends ConsumerState<UsernameScreen> {
                                   ),
                                   focusedBorder: OutlineInputBorder(
                                     borderRadius: BorderRadius.circular(16),
-                                    borderSide: BorderSide(
+                                    borderSide: const BorderSide(
                                       color: primaryColor,
                                       width: 1.5,
                                     ),

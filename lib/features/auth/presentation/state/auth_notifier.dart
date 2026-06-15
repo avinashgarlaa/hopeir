@@ -40,7 +40,6 @@ class AuthNotifier extends StateNotifier<AuthState> {
     String password,
     BuildContext context,
   ) async {
-
     state = state.copyWith(isLoading: true, errorMessage: null);
 
     try {
@@ -51,7 +50,6 @@ class AuthNotifier extends StateNotifier<AuthState> {
       );
 
       if (loginResponse == null || loginResponse['status'] != "OK") {
-
         state = state.copyWith(
           isLoading: false,
           errorMessage: "Session expired or invalid credentials.",
@@ -61,7 +59,6 @@ class AuthNotifier extends StateNotifier<AuthState> {
 
       // Get user profile
       final user = await getProfileUseCase(email: email);
-
 
       state = state.copyWith(isLoading: false);
 
@@ -99,7 +96,7 @@ class AuthNotifier extends StateNotifier<AuthState> {
           }
         });
       }
-    } catch (e, stacktrace) {
+    } catch (e) {
       state = state.copyWith(
         isLoading: false,
         errorMessage: "Something went wrong while checking login status.",
@@ -265,7 +262,7 @@ class AuthNotifier extends StateNotifier<AuthState> {
         errorMessage: "Unexpected error. Please try again.",
       );
       return false;
-    } catch (e, stacktrace) {
+    } catch (e) {
       state = state.copyWith(
         isLoading: false,
         errorMessage: "Something went wrong. Please try again.",

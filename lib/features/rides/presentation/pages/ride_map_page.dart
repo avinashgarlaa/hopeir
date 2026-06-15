@@ -1,11 +1,9 @@
 import 'dart:async';
 import 'dart:convert';
-import 'dart:math' as math;
 
 import 'package:flutter/material.dart';
 import 'package:flutter_map/flutter_map.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
-import 'package:font_awesome_flutter/font_awesome_flutter.dart';
 import 'package:google_fonts/google_fonts.dart';
 import 'package:hop_eir/features/rides/presentation/controllers/ride_ws_controller.dart';
 import 'package:latlong2/latlong.dart';
@@ -86,8 +84,9 @@ class _RideMapPageState extends ConsumerState<RideMapPage>
         if (now.difference(_lastCameraMove).inMilliseconds > 1000) {
           _lastCameraMove = now;
           WidgetsBinding.instance.addPostFrameCallback((_) {
-            if (_isMapReady)
+            if (_isMapReady) {
               _mapController.move(newPos, _mapController.camera.zoom);
+            }
           });
         }
       }
@@ -143,6 +142,7 @@ class _RideMapPageState extends ConsumerState<RideMapPage>
         final loc = data['waypoints'][0]['location'];
         return LatLng(loc[1], loc[0]);
       }
+      // ignore: empty_catches
     } catch (e) {}
     return LatLng(lat, lng);
   }

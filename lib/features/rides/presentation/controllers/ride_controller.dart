@@ -52,7 +52,6 @@ class RideController extends AutoDisposeAsyncNotifier<List<Ride>> {
         timeWindowMinutes: timeWindowMinutes,
       );
 
-
       return matchedRides;
     } catch (e) {
       rethrow;
@@ -101,7 +100,6 @@ class RideController extends AutoDisposeAsyncNotifier<List<Ride>> {
         ride: ride,
       );
 
-
       // 🔥 DRF wraps payload inside "data"
       final data = response['data'];
       if (data == null) {
@@ -129,7 +127,6 @@ class RideController extends AutoDisposeAsyncNotifier<List<Ride>> {
         requestedAt: data['requested_at']?.toString(),
       );
 
-
       /// 🔥 HTTP → WS bridge (request list only)
       ref
           .read(
@@ -138,7 +135,7 @@ class RideController extends AutoDisposeAsyncNotifier<List<Ride>> {
           .addMyRequest(newRequest);
 
       return response;
-    } on DioException catch (e) {
+    } on DioException {
       rethrow;
     }
   }

@@ -1,5 +1,7 @@
 // ignore_for_file: avoid_print
 
+import 'dart:async';
+
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:google_fonts/google_fonts.dart';
@@ -7,8 +9,10 @@ import 'package:hop_eir/features/auth/presentation/providers/auth_provider.dart'
 import 'package:hop_eir/features/rides/domain/usecases/route_service.dart';
 import 'package:hop_eir/features/rides/presentation/controllers/ride_ws_controller.dart';
 import 'package:hop_eir/features/rides/presentation/pages/post_ride_page.dart';
+import 'package:hop_eir/features/rides/presentation/pages/rides_page.dart';
 import 'package:hop_eir/features/rides/presentation/providers/ride_provider.dart';
 import 'package:hop_eir/features/rides/presentation/widgets/message_banner.dart';
+import 'package:hop_eir/features/stations/data/models/station_model.dart';
 import 'package:hop_eir/features/stations/domain/entities/station.dart';
 import 'package:hop_eir/features/stations/presentation/providers/providers.dart';
 import 'package:hop_eir/features/vehicles/presentation/provider/vehicle_providers.dart';
@@ -35,68 +39,28 @@ Future<void> showPostRideDialog(BuildContext context, WidgetRef ref) async {
           builder: (context, setState) {
             // Station Selector Bottom Sheet
             void showStationSelector({required bool isStart}) {
-              final stationsAsync = ref.read(allStationsProvider);
-              stationsAsync.whenData((stations) {
-                showModalBottomSheet(
-                  context: context,
-                  backgroundColor: Colors.white,
-                  shape: const RoundedRectangleBorder(
-                    borderRadius:
-                        BorderRadius.vertical(top: Radius.circular(20)),
+              showModalBottomSheet(
+                context: context,
+                isScrollControlled: true,
+                backgroundColor: Colors.white,
+                shape: const RoundedRectangleBorder(
+                  borderRadius: BorderRadius.vertical(
+                    top: Radius.circular(20),
                   ),
-                  builder: (_) {
-                    return Column(
-                      mainAxisSize: MainAxisSize.min,
-                      children: [
-                        const SizedBox(height: 12),
-                        Container(
-                          width: 50,
-                          height: 5,
-                          decoration: BoxDecoration(
-                            color: Colors.grey.shade300,
-                            borderRadius: BorderRadius.circular(10),
-                          ),
-                        ),
-                        const SizedBox(height: 8),
-                        Text(
-                          "Select Station",
-                          style: GoogleFonts.poppins(
-                            fontSize: 18,
-                            fontWeight: FontWeight.bold,
-                            color: primaryColor,
-                          ),
-                        ),
-                        const SizedBox(height: 8),
-                        Expanded(
-                          child: ListView.separated(
-                            itemCount: stations.length,
-                            separatorBuilder: (_, __) => const Divider(),
-                            itemBuilder: (context, index) {
-                              final station = stations[index];
-                              return ListTile(
-                                leading: const Icon(Icons.train,
-                                    color: Colors.black),
-                                title: Text(station.name,
-                                    style: GoogleFonts.poppins()),
-                                onTap: () {
-                                  setState(() {
-                                    if (isStart) {
-                                      startStation = station;
-                                    } else {
-                                      destinationStation = station;
-                                    }
-                                  });
-                                  Navigator.pop(context);
-                                },
-                              );
-                            },
-                          ),
-                        ),
-                      ],
-                    );
+                ),
+                builder: (_) => _StationSearchBottomSheet(
+                  isStart: isStart,
+                  onSelected: (station) {
+                    setState(() {
+                      if (isStart) {
+                        startStation = station;
+                      } else {
+                        destinationStation = station;
+                      }
+                    });
                   },
-                );
-              });
+                ),
+              );
             }
 
             // Seats Selector
@@ -356,7 +320,7 @@ Future<void> showPostRideDialog(BuildContext context, WidgetRef ref) async {
                       ? Row(
                           mainAxisSize: MainAxisSize.min,
                           children: [
-                            SizedBox(
+                            const SizedBox(
                               width: 20,
                               height: 20,
                               child: CircularProgressIndicator(
@@ -454,4 +418,147 @@ Widget _selectorTile({
       ),
     ),
   );
+}
+
+class _StationSearchBottomSheet extends ConsumerStatefulWidget {
+  final bool isStart;
+  final Function(StationModel) onSelected;
+
+  const _StationSearchBottomSheet({
+    required this.isStart,
+    required this.onSelected,
+  });
+
+  @override
+  ConsumerState<_StationSearchBottomSheet> createState() =>
+      _StationSearchBottomSheetState();
+}
+
+class _StationSearchBottomSheetState
+    extends ConsumerState<_StationSearchBottomSheet> {
+  final TextEditingController _controller = TextEditingController();
+
+  Timer? _debounce;
+  String query = '';
+
+  @override
+  void dispose() {
+    _debounce?.cancel();
+    _controller.dispose();
+    super.dispose();
+  }
+
+  void _onChanged(String value) {
+    _debounce?.cancel();
+
+    _debounce = Timer(
+      const Duration(milliseconds: 400),
+      () {
+        if (mounted) {
+          setState(() {
+            query = value.trim();
+          });
+        }
+      },
+    );
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final stationsAsync = query.length >= 3
+        ? ref.watch(searchStationsProvider(query))
+        : const AsyncValue.data(<StationModel>[]);
+
+    return SizedBox(
+      height: MediaQuery.of(context).size.height * 0.7,
+      child: Column(
+        children: [
+          const SizedBox(height: 12),
+          Container(
+            width: 50,
+            height: 5,
+            decoration: BoxDecoration(
+              color: Colors.grey.shade300,
+              borderRadius: BorderRadius.circular(10),
+            ),
+          ),
+          const SizedBox(height: 8),
+          Text(
+            "Select Station",
+            style: GoogleFonts.poppins(
+              fontSize: 18,
+              fontWeight: FontWeight.bold,
+              color: primaryColor,
+            ),
+          ),
+          Padding(
+            padding: const EdgeInsets.all(16),
+            child: TextField(
+              controller: _controller,
+              onChanged: _onChanged,
+              decoration: const InputDecoration(
+                hintText: 'Search place...',
+                prefixIcon: Icon(Icons.search),
+                border: OutlineInputBorder(),
+              ),
+            ),
+          ),
+          Expanded(
+            child: stationsAsync.when(
+              data: (stations) {
+                if (query.isEmpty) {
+                  return const Center(
+                    child: Text('Search for a place'),
+                  );
+                }
+
+                if (query.length < 3) {
+                  return const Center(
+                    child: Text(
+                      'Enter at least 3 characters',
+                    ),
+                  );
+                }
+
+                if (stations.isEmpty) {
+                  return const Center(
+                    child: Text('No stations found'),
+                  );
+                }
+
+                return ListView.separated(
+                  itemCount: stations.length,
+                  separatorBuilder: (_, __) => const Divider(),
+                  itemBuilder: (context, index) {
+                    final station = stations[index];
+
+                    return ListTile(
+                      leading: const Icon(
+                        Icons.train,
+                        color: Colors.black,
+                      ),
+                      title: Text(
+                        station.name,
+                        style: GoogleFonts.poppins(),
+                      ),
+                      onTap: () {
+                        widget.onSelected(station);
+                        Navigator.pop(context);
+                      },
+                    );
+                  },
+                );
+              },
+              loading: () => const Center(
+                child: CircularProgressIndicator(),
+              ),
+              error: (e, _) => Center(
+                child: Text('Error: $e'),
+              ),
+            ),
+          ),
+        ],
+      ),
+    );
+  }
 }

@@ -65,6 +65,6 @@ class FirebaseNotificationHelper {
 
   /// Call this to get and print FCM token
   static Future<void> printFcmToken() async {
-    final token = await FirebaseMessaging.instance.getToken();
+    await FirebaseMessaging.instance.getToken();
   }
 }

@@ -1,3 +1,5 @@
+import 'dart:async';
+
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:google_fonts/google_fonts.dart';
@@ -48,136 +50,27 @@ class _RidesPageState extends ConsumerState<RidesPage> {
   }
 
   void _showStationSelector({required bool isFrom}) {
-    final stationsAsync = ref.read(allStationsProvider);
-
-    stationsAsync.when(
-      data: (stations) {
-        // Sort stations alphabetically
-        final sortedStations = [...stations]..sort(
-            (a, b) => a.name.toLowerCase().compareTo(
-                  b.name.toLowerCase(),
-                ),
-          );
-
-        showModalBottomSheet(
-          context: context,
-          isScrollControlled: true,
-          backgroundColor: Colors.white,
-          shape: const RoundedRectangleBorder(
-            borderRadius: BorderRadius.vertical(
-              top: Radius.circular(24),
-            ),
-          ),
-          builder: (context) {
-            return SafeArea(
-              child: SizedBox(
-                height: MediaQuery.of(context).size.height * 0.6,
-                child: Column(
-                  children: [
-                    const SizedBox(height: 12),
-
-                    // Top drag indicator
-                    Container(
-                      width: 50,
-                      height: 5,
-                      decoration: BoxDecoration(
-                        color: Colors.grey[300],
-                        borderRadius: BorderRadius.circular(10),
-                      ),
-                    ),
-
-                    // Title
-                    Padding(
-                      padding: const EdgeInsets.all(16),
-                      child: Text(
-                        "Select Station",
-                        style: GoogleFonts.poppins(
-                          fontSize: 18,
-                          fontWeight: FontWeight.w600,
-                          color: primaryColor,
-                        ),
-                      ),
-                    ),
-
-                    // Empty state
-                    if (sortedStations.isEmpty)
-                      Expanded(
-                        child: Center(
-                          child: Text(
-                            "No stations available",
-                            style: GoogleFonts.poppins(
-                              fontSize: 16,
-                            ),
-                          ),
-                        ),
-                      )
-                    else
-                      // Station list
-                      Expanded(
-                        child: ListView.builder(
-                          padding: const EdgeInsets.only(bottom: 20),
-                          itemCount: sortedStations.length,
-                          itemBuilder: (context, index) {
-                            final station = sortedStations[index];
-
-                            return ListTile(
-                              leading: const Icon(
-                                Icons.train,
-                                color: Colors.black54,
-                              ),
-                              title: Text(
-                                station.name,
-                                style: GoogleFonts.poppins(
-                                  fontSize: 15,
-                                ),
-                              ),
-                              subtitle: Text(
-                                station.city,
-                                style: GoogleFonts.poppins(
-                                  fontSize: 12,
-                                  color: Colors.grey,
-                                ),
-                              ),
-                              onTap: () {
-                                setState(() {
-                                  if (isFrom) {
-                                    _fromStation = station;
-                                  } else {
-                                    _toStation = station;
-                                  }
-                                });
-
-                                Navigator.pop(context);
-                              },
-                            );
-                          },
-                        ),
-                      ),
-                  ],
-                ),
-              ),
-            );
+    showModalBottomSheet(
+      context: context,
+      isScrollControlled: true,
+      backgroundColor: Colors.white,
+      shape: const RoundedRectangleBorder(
+        borderRadius: BorderRadius.vertical(
+          top: Radius.circular(24),
+        ),
+      ),
+      builder: (context) {
+        return _StationSearchSheet(
+          isFrom: isFrom,
+          onStationSelected: (station) {
+            setState(() {
+              if (isFrom) {
+                _fromStation = station;
+              } else {
+                _toStation = station;
+              }
+            });
           },
-        );
-      },
-      loading: () {
-        showDialog(
-          context: context,
-          barrierDismissible: false,
-          builder: (_) => const Center(
-            child: CircularProgressIndicator(),
-          ),
-        );
-      },
-      error: (error, stackTrace) {
-        debugPrintStack(stackTrace: stackTrace);
-
-        ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(
-            content: Text(
-              "Failed to load stations: $error",
-            ),
-          ),
         );
       },
     );
@@ -404,3 +297,124 @@ class _RidesPageState extends ConsumerState<RidesPage> {
 // Theme Colors
 const primaryColor = Color.fromRGBO(137, 177, 98, 1);
 const backgroundColor = Color(0xFFF5F7FF);
+
+class _StationSearchSheet extends ConsumerStatefulWidget {
+  final bool isFrom;
+  final Function(StationModel) onStationSelected;
+
+  const _StationSearchSheet({
+    required this.isFrom,
+    required this.onStationSelected,
+  });
+
+  @override
+  ConsumerState<_StationSearchSheet> createState() =>
+      _StationSearchSheetState();
+}
+
+class _StationSearchSheetState extends ConsumerState<_StationSearchSheet> {
+  final TextEditingController _controller = TextEditingController();
+
+  Timer? _debounce;
+  String _query = '';
+
+  @override
+  void dispose() {
+    _debounce?.cancel();
+    _controller.dispose();
+    super.dispose();
+  }
+
+  void _onSearchChanged(String value) {
+    _debounce?.cancel();
+
+    _debounce = Timer(
+      const Duration(milliseconds: 400),
+      () {
+        setState(() {
+          _query = value.trim();
+        });
+      },
+    );
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final stationsAsync = _query.length >= 3
+        ? ref.watch(searchStationsProvider(_query))
+        : const AsyncValue.data(<StationModel>[]);
+
+    return SafeArea(
+      child: SizedBox(
+        height: MediaQuery.of(context).size.height * 0.7,
+        child: Column(
+          children: [
+            const SizedBox(height: 12),
+            Container(
+              width: 50,
+              height: 5,
+              decoration: BoxDecoration(
+                color: Colors.grey[300],
+                borderRadius: BorderRadius.circular(10),
+              ),
+            ),
+            Padding(
+              padding: const EdgeInsets.all(16),
+              child: TextField(
+                controller: _controller,
+                onChanged: _onSearchChanged,
+                decoration: const InputDecoration(
+                  hintText: 'Search place...',
+                  prefixIcon: Icon(Icons.search),
+                ),
+              ),
+            ),
+            Expanded(
+              child: stationsAsync.when(
+                data: (stations) {
+                  if (_query.length < 3) {
+                    return const Center(
+                      child: Text(
+                        'Enter at least 3 characters',
+                      ),
+                    );
+                  }
+
+                  if (stations.isEmpty) {
+                    return const Center(
+                      child: Text(
+                        'No stations found',
+                      ),
+                    );
+                  }
+
+                  return ListView.builder(
+                    itemCount: stations.length,
+                    itemBuilder: (context, index) {
+                      final station = stations[index];
+
+                      return ListTile(
+                        leading: const Icon(Icons.train),
+                        title: Text(station.name),
+                        onTap: () {
+                          widget.onStationSelected(station);
+                          Navigator.pop(context);
+                        },
+                      );
+                    },
+                  );
+                },
+                loading: () => const Center(
+                  child: CircularProgressIndicator(),
+                ),
+                error: (e, _) => Center(
+                  child: Text('Error: $e'),
+                ),
+              ),
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+}

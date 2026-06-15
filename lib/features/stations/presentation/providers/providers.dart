@@ -3,6 +3,7 @@
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:hop_eir/features/stations/domain/usecases/get_all_stations.dart';
 import 'package:hop_eir/features/stations/domain/usecases/get_station_by_id.dart';
+import 'package:hop_eir/features/stations/domain/usecases/search_stations.dart';
 import '../../data/services/station_api_service.dart';
 
 import '../../data/models/station_model.dart';
@@ -20,6 +21,17 @@ final stationByIdProvider = FutureProvider.family<StationModel, int>((
 ) async {
   final service = ref.read(stationApiServiceProvider);
   return await GetStationByIdUseCase(service).call(id);
+});
+
+final searchStationsProvider =
+    FutureProvider.family<List<StationModel>, String>((ref, query) async {
+  if (query.trim().length < 3) {
+    return [];
+  }
+
+  final service = ref.read(stationApiServiceProvider);
+
+  return await SearchStationsUseCase(service).call(query);
 });
 
 final hasUnreadRequestsProvider = StateProvider<bool>((ref) => false);

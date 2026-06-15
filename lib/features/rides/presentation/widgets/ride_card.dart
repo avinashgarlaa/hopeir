@@ -196,8 +196,10 @@ class _RideCardState extends ConsumerState<RideCard> {
                                 onPressed: () {
                                   final fromStation = fromAsync.value;
                                   final toStation = toAsync.value;
-                                  if (fromStation == null || toStation == null)
+                                  if (fromStation == null ||
+                                      toStation == null) {
                                     return;
+                                  }
 
                                   ref
                                       .read(rideWSControllerProvider(ride.id)
@@ -359,7 +361,7 @@ class _RideCardState extends ConsumerState<RideCard> {
                             : Colors.red,
                         shape: BoxShape.circle,
                       ),
-                      child: Icon(
+                      child: const Icon(
                         Icons.my_location_rounded,
                         color: Colors.white,
                         size: 10,

@@ -2,8 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:font_awesome_flutter/font_awesome_flutter.dart';
 import 'package:google_fonts/google_fonts.dart';
 import 'package:hop_eir/features/requests/presentation/pages/driver_request_page.dart';
-import 'package:hop_eir/features/requests/presentation/pages/sent_request_page.dart'
-    hide ReceivedRequestsPage;
+import 'package:hop_eir/features/requests/presentation/pages/sent_request_page.dart';
 
 class RequestsPage extends StatefulWidget {
   const RequestsPage({super.key});

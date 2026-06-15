@@ -35,7 +35,6 @@ class AuthRemoteDatasourceImpl extends AuthRemoteDatasource {
         data: data,
       );
 
-
       if (response.statusCode == 200 || response.statusCode == 201) {
         return Map<String, dynamic>.from(response.data);
       } else {
@@ -110,7 +109,7 @@ class AuthRemoteDatasourceImpl extends AuthRemoteDatasource {
       }
 
       return response.data;
-    } on DioException catch (e) {
+    } on DioException {
       return null;
     } catch (e) {
       return null;
@@ -135,7 +134,7 @@ class AuthRemoteDatasourceImpl extends AuthRemoteDatasource {
       }
 
       return response.data;
-    } on DioException catch (e) {
+    } on DioException {
       return null;
     } catch (e) {
       return null;

@@ -154,8 +154,6 @@ class _SearchedRidesPageState extends ConsumerState<SearchedRidesPage>
                     itemBuilder: (context, index) {
                       final match = rides[index];
 
-                      final ride = match['ride'];
-
                       final matchZone = match['match_zone'] ?? 'partial_route';
 
                       final score = match['score'] ?? 0;
