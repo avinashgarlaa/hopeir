@@ -2,6 +2,7 @@ import 'dart:async';
 
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
+import 'package:font_awesome_flutter/font_awesome_flutter.dart';
 import 'package:google_fonts/google_fonts.dart';
 import 'package:hop_eir/features/banner/presentation/banner_widget.dart';
 import 'package:hop_eir/features/rides/presentation/pages/searched_rides_page.dart';
@@ -36,7 +37,7 @@ class _RidesPageState extends ConsumerState<RidesPage> {
     if (_fromStation == null || _toStation == null || _seats == null) {
       showPopUp(
         context,
-        icon: Icons.warning,
+        icon: FontAwesomeIcons.warning,
         message: "Please fill all fields!",
       );
       return;

@@ -33,64 +33,65 @@
 	</array>
 	<key>CFBundleVersion</key>
 	<string>$(FLUTTER_BUILD_NUMBER)</string>
-	
-	<!-- 🔔 NOTIFICATION CONFIGURATION -->
 	<key>FirebaseAppDelegateProxyEnabled</key>
 	<false/>
-	
-	<!-- ✅ REQUIRED: Background modes for notifications -->
-	<key>UIBackgroundModes</key>
-	<array>
-		<string>remote-notification</string>
-	</array>
-	
-	<!-- ✅ REQUIRED: Notification permission description -->
-	<key>NSUserNotificationUsageDescription</key>
-	<string>HopÉir uses notifications to alert you about ride updates, driver locations, and important ride information.</string>
-	
-	<!-- ✅ Alternative notification permission description (iOS 14+) -->
-	<key>NSNotificationUsageDescription</key>
-	<string>HopÉir uses notifications to keep you updated about your rides.</string>
-	
 	<key>LSApplicationQueriesSchemes</key>
 	<array>
 		<string>google</string>
 	</array>
 	<key>LSRequiresIPhoneOS</key>
 	<true/>
-	
-	<!-- 🔐 BIOMETRIC PERMISSION -->
 	<key>NSFaceIDUsageDescription</key>
 	<string>This app uses Face ID to sign in quickly and securely.</string>
-	
-	<!-- 🌐 LOCAL NETWORK PERMISSION -->
 	<key>NSLocalNetworkUsageDescription</key>
 	<string>This app uses the local network for debugging and development purposes.</string>
-	
-	<!-- 📍 LOCATION PERMISSIONS -->
-	<key>NSLocationWhenInUseUsageDescription</key>
-	<string>HopÉir needs your location to find nearby rides and track your driver in real-time.</string>
-	
 	<key>NSLocationAlwaysAndWhenInUseUsageDescription</key>
 	<string>HopÉir needs your location to share live location during an ongoing ride.</string>
-	
 	<key>NSLocationAlwaysUsageDescription</key>
 	<string>HopÉir needs your location to track your driver in real-time during rides.</string>
-	
-
+	<key>NSLocationWhenInUseUsageDescription</key>
+	<string>HopÉir needs your location to find nearby rides and track your driver in real-time.</string>
+	<key>NSNotificationUsageDescription</key>
+	<string>HopÉir uses notifications to keep you updated about your rides.</string>
+	<key>NSUserNotificationUsageDescription</key>
+	<string>HopÉir uses notifications to alert you about ride updates, driver locations, and important ride information.</string>
+	<key>UIApplicationLaunchOptionsRemoteNotificationKey</key>
+	<true/>
+	<key>UIApplicationSceneManifest</key>
+	<dict>
+		<key>UIApplicationSupportsMultipleScenes</key>
+		<false/>
+		<key>UISceneConfigurations</key>
+		<dict>
+			<key>UIWindowSceneSessionRoleApplication</key>
+			<array>
+				<dict>
+					<key>UISceneClassName</key>
+					<string>UIWindowScene</string>
+					<key>UISceneConfigurationName</key>
+					<string>flutter</string>
+					<key>UISceneDelegateClassName</key>
+					<string>FlutterSceneDelegate</string>
+					<key>UISceneStoryboardFile</key>
+					<string>Main</string>
+				</dict>
+			</array>
+		</dict>
+	</dict>
+	<key>UIApplicationSupportsIndirectInputEvents</key>
+	<true/>
+	<key>UIBackgroundModes</key>
+	<array>
+		<string>remote-notification</string>
+	</array>
 	<key>UILaunchStoryboardName</key>
 	<string>LaunchScreen</string>
 	<key>UIMainStoryboardFile</key>
 	<string>Main</string>
+	<key>UIRemoteNotifications</key>
+	<true/>
 	<key>UIStatusBarHidden</key>
 	<false/>
-
-	<!-- 📱 ORIENTATION -->
-	<key>UISupportedInterfaceOrientations~iphone</key>
-	<array>
-		<string>UIInterfaceOrientationPortrait</string>
-	</array>
-
 	<key>UISupportedInterfaceOrientations~ipad</key>
 	<array>
 		<string>UIInterfaceOrientationPortrait</string>
@@ -98,15 +99,9 @@
 		<string>UIInterfaceOrientationLandscapeLeft</string>
 		<string>UIInterfaceOrientationLandscapeRight</string>
 	</array>
-	
-	<!-- 🔔 REQUIRED: Remote notification support -->
-	<key>UIRemoteNotifications</key>
-	<true/>
-	
-	<!-- ✅ Push notification support -->
-	<key>UIApplicationLaunchOptionsRemoteNotificationKey</key>
-	<true/>
-	<key>UIApplicationSupportsIndirectInputEvents</key>
-	<true/>
+	<key>UISupportedInterfaceOrientations~iphone</key>
+	<array>
+		<string>UIInterfaceOrientationPortrait</string>
+	</array>
 </dict>
 </plist>

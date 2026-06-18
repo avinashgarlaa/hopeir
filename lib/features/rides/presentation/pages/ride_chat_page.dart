@@ -121,7 +121,7 @@ class _RideChatPageState extends ConsumerState<RideChatPage> {
                         onPressed: () async {
                           Navigator.pop(context);
                         },
-                        icon: const Icon(FontAwesomeIcons.backward,
+                        icon: const FaIcon(FontAwesomeIcons.backward,
                             color: primaryColor),
                         tooltip: "Post a new ride",
                       ),

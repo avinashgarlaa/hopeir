@@ -88,7 +88,7 @@ class _ProfileTabSwitcherState extends ConsumerState<ProfileTabSwitcher>
                       const Spacer(),
                       IconButton(
                         onPressed: _logout,
-                        icon: const Icon(
+                        icon: const FaIcon(
                           FontAwesomeIcons.signOut,
                           color: primaryColor,
                         ),

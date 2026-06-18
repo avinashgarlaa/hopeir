@@ -144,7 +144,7 @@ class _FancyBottomNavigationBar extends ConsumerWidget {
   }
 
   Widget _navItem(
-    IconData icon,
+    FaIconData icon,
     String label,
     int index, {
     bool showDot = false,
@@ -181,8 +181,8 @@ class _FancyBottomNavigationBar extends ConsumerWidget {
               mainAxisSize: MainAxisSize.min,
               children: [
                 isSelected
-                    ? gradientIcon(Icon(icon, size: 15, color: Colors.white))
-                    : Icon(icon,
+                    ? gradientIcon(FaIcon(icon, size: 15, color: Colors.white))
+                    : FaIcon(icon,
                         size: 18, color: Colors.black.withOpacity(0.4)),
                 const SizedBox(height: 4),
                 Text(

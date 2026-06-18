@@ -90,7 +90,7 @@ class _PostRidePageState extends ConsumerState<PostRidePage> {
                           await showPostRideDialog(context, ref);
                           ref.invalidate(createdRidesProvider(user.userId));
                         },
-                        icon: const Icon(FontAwesomeIcons.plus,
+                        icon: const FaIcon(FontAwesomeIcons.plus,
                             color: primaryColor),
                         tooltip: "Post a new ride",
                       ),

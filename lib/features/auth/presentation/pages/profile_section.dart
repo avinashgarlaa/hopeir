@@ -85,7 +85,7 @@ class MyProfileSection extends ConsumerWidget {
             ),
             title: Row(
               children: [
-                const Icon(FontAwesomeIcons.userSlash, color: primaryColor),
+                const FaIcon(FontAwesomeIcons.userSlash, color: primaryColor),
                 const SizedBox(width: 20),
                 Expanded(
                   child: Text(
@@ -250,7 +250,7 @@ class MyProfileSection extends ConsumerWidget {
                       const Spacer(),
                       IconButton(
                         onPressed: () => showDeleteAccountDialog(context),
-                        icon: const Icon(
+                        icon: const FaIcon(
                           FontAwesomeIcons.userXmark,
                           color: Colors.black,
                         ),
@@ -267,7 +267,7 @@ class MyProfileSection extends ConsumerWidget {
   }
 
   Widget _buildProfileItem({
-    required IconData icon,
+    required FaIconData icon,
     required String label,
     required String value,
     required Color color,
@@ -287,7 +287,7 @@ class MyProfileSection extends ConsumerWidget {
               color: color.withOpacity(0.12),
               borderRadius: BorderRadius.circular(12),
             ),
-            child: Icon(icon, color: color, size: 18),
+            child: FaIcon(icon, color: color, size: 18),
           ),
           const SizedBox(width: 14),
           Expanded(

@@ -4,6 +4,7 @@ import 'dart:async';
 
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
+import 'package:font_awesome_flutter/font_awesome_flutter.dart';
 import 'package:google_fonts/google_fonts.dart';
 import 'package:hop_eir/features/auth/presentation/providers/auth_provider.dart';
 import 'package:hop_eir/features/rides/domain/usecases/route_service.dart';
@@ -505,7 +506,8 @@ Future<void> showPostRideDialog(BuildContext context, WidgetRef ref) async {
                 if (context.mounted) {
                   Navigator.pop(context);
                   showPopUp(context,
-                      icon: Icons.check, message: "Ride Created Successfully");
+                      icon: FontAwesomeIcons.check,
+                      message: "Ride Created Successfully");
                 }
               } else {
                 setState(() => isCreating = false);

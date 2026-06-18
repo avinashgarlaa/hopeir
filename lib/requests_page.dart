@@ -72,7 +72,7 @@ class _RequestsPageState extends State<RequestsPage>
                       onPressed: () {
                         // _logout();
                       },
-                      icon: const Icon(
+                      icon: const FaIcon(
                         FontAwesomeIcons.signOut,
                         color: Colors.transparent,
                       ),

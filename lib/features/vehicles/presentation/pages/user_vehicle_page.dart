@@ -137,7 +137,7 @@ class _VehiclePageState extends ConsumerState<VehiclePage> {
                           ),
                         ],
                       ),
-                      child: Icon(
+                      child: FaIcon(
                         FontAwesomeIcons.car,
                         color: Colors.white,
                         size: isTablet ? 36 : 28,
@@ -241,7 +241,7 @@ class _VehiclePageState extends ConsumerState<VehiclePage> {
 
   Widget _buildFormField(
     String label,
-    IconData icon,
+    FaIconData icon,
     TextEditingController controller,
     Color primaryColor, {
     bool isNumber = false,
@@ -262,7 +262,7 @@ class _VehiclePageState extends ConsumerState<VehiclePage> {
         decoration: InputDecoration(
           contentPadding:
               const EdgeInsets.symmetric(vertical: 16, horizontal: 16),
-          prefixIcon: Icon(icon, color: primaryColor, size: 20),
+          prefixIcon: FaIcon(icon, color: primaryColor, size: 20),
           hintText: label,
           hintStyle: GoogleFonts.poppins(
             color: Colors.grey[400],
@@ -330,7 +330,7 @@ class _VehiclePageState extends ConsumerState<VehiclePage> {
                       ),
                     ],
                   ),
-                  child: Icon(
+                  child: FaIcon(
                     FontAwesomeIcons.car,
                     color: Colors.white,
                     size: isTablet ? 36 : 28,
@@ -446,7 +446,7 @@ class _VehiclePageState extends ConsumerState<VehiclePage> {
   }
 
   Widget _buildDetailCard(
-    IconData icon,
+    FaIconData icon,
     String label,
     String value,
     Color primaryColor,
@@ -471,7 +471,7 @@ class _VehiclePageState extends ConsumerState<VehiclePage> {
               color: primaryColor.withOpacity(0.1),
               borderRadius: BorderRadius.circular(12),
             ),
-            child: Icon(icon, color: primaryColor, size: isTablet ? 20 : 18),
+            child: FaIcon(icon, color: primaryColor, size: isTablet ? 20 : 18),
           ),
           const SizedBox(width: 14),
           Expanded(

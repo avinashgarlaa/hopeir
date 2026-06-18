@@ -1,9 +1,10 @@
 import 'package:flutter/material.dart';
+import 'package:font_awesome_flutter/font_awesome_flutter.dart';
 import 'package:google_fonts/google_fonts.dart';
 
 void showPopUp(
   BuildContext context, {
-  required IconData icon,
+  required FaIconData icon,
   required String message,
 }) {
   showGeneralDialog(
@@ -26,7 +27,7 @@ void showPopUp(
 }
 
 class _PopUpContent extends StatelessWidget {
-  final IconData icon;
+  final FaIconData icon;
   final String message;
 
   const _PopUpContent({required this.icon, required this.message});
@@ -53,7 +54,7 @@ class _PopUpContent extends StatelessWidget {
         child: Column(
           mainAxisSize: MainAxisSize.min,
           children: [
-            Icon(icon, size: 50, color: Colors.white),
+            FaIcon(icon, size: 50, color: Colors.white),
             const SizedBox(height: 20),
             Text(
               message,
