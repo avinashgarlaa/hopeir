@@ -77,12 +77,6 @@
 	<key>NSLocationAlwaysUsageDescription</key>
 	<string>HopÉir needs your location to track your driver in real-time during rides.</string>
 	
-	<!-- 📱 DEVICE FAMILY -->
-	<key>UIDeviceFamily</key>
-	<array>
-		<integer>1</integer> <!-- iPhone -->
-		<integer>2</integer> <!-- iPad -->
-	</array>
 
 	<key>UILaunchStoryboardName</key>
 	<string>LaunchScreen</string>
