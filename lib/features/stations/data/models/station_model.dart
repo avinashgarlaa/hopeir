@@ -3,6 +3,7 @@ import '../../domain/entities/station.dart';
 class StationModel extends Station {
   StationModel({
     required super.id,
+    super.distanceKm,
     required super.name,
     required super.latitude,
     required super.longitude,
@@ -26,6 +27,7 @@ class StationModel extends Station {
       country: json['country'] ?? '',
       postalCode: json['postal_code'],
       landmark: json['landmark'],
+      distanceKm: (json['distance_km'] as num?)?.toDouble(),
     );
   }
 }

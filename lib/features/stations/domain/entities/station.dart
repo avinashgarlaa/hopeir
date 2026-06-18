@@ -9,8 +9,10 @@ class Station {
   final String country;
   final String? postalCode;
   final String? landmark;
+  final double? distanceKm;
 
   Station({
+    this.distanceKm,
     required this.id,
     required this.name,
     required this.latitude,

@@ -33,31 +33,51 @@
 	</array>
 	<key>CFBundleVersion</key>
 	<string>$(FLUTTER_BUILD_NUMBER)</string>
+	
+	<!-- 🔔 NOTIFICATION CONFIGURATION -->
 	<key>FirebaseAppDelegateProxyEnabled</key>
 	<false/>
+	
+	<!-- ✅ REQUIRED: Background modes for notifications -->
+	<key>UIBackgroundModes</key>
+	<array>
+		<string>remote-notification</string>
+	</array>
+	
+	<!-- ✅ REQUIRED: Notification permission description -->
+	<key>NSUserNotificationUsageDescription</key>
+	<string>HopÉir uses notifications to alert you about ride updates, driver locations, and important ride information.</string>
+	
+	<!-- ✅ Alternative notification permission description (iOS 14+) -->
+	<key>NSNotificationUsageDescription</key>
+	<string>HopÉir uses notifications to keep you updated about your rides.</string>
+	
 	<key>LSApplicationQueriesSchemes</key>
 	<array>
 		<string>google</string>
 	</array>
 	<key>LSRequiresIPhoneOS</key>
 	<true/>
+	
+	<!-- 🔐 BIOMETRIC PERMISSION -->
 	<key>NSFaceIDUsageDescription</key>
 	<string>This app uses Face ID to sign in quickly and securely.</string>
+	
+	<!-- 🌐 LOCAL NETWORK PERMISSION -->
 	<key>NSLocalNetworkUsageDescription</key>
 	<string>This app uses the local network for debugging and development purposes.</string>
-	<key>NSUserNotificationUsageDescription</key>
-	<string>This app uses notifications to alert you about ride updates like the start and end of your rides.</string>
-	<key>UIApplicationSupportsIndirectInputEvents</key>
-	<true/>
-		<!-- ✅ Location permissions (Required for live ride tracking) -->
+	
+	<!-- 📍 LOCATION PERMISSIONS -->
 	<key>NSLocationWhenInUseUsageDescription</key>
-	<string>We need your location to enable live ride tracking.</string>
-
+	<string>HopÉir needs your location to find nearby rides and track your driver in real-time.</string>
+	
 	<key>NSLocationAlwaysAndWhenInUseUsageDescription</key>
-	<string>We need your location to share live location during an ongoing ride.</string>
-
-
-	<!-- ✅ iPhone + iPad support -->
+	<string>HopÉir needs your location to share live location during an ongoing ride.</string>
+	
+	<key>NSLocationAlwaysUsageDescription</key>
+	<string>HopÉir needs your location to track your driver in real-time during rides.</string>
+	
+	<!-- 📱 DEVICE FAMILY -->
 	<key>UIDeviceFamily</key>
 	<array>
 		<integer>1</integer> <!-- iPhone -->
@@ -71,13 +91,12 @@
 	<key>UIStatusBarHidden</key>
 	<false/>
 
-	<!-- ✅ iPhone only portrait -->
+	<!-- 📱 ORIENTATION -->
 	<key>UISupportedInterfaceOrientations~iphone</key>
 	<array>
 		<string>UIInterfaceOrientationPortrait</string>
 	</array>
 
-	<!-- ✅ iPad must support all 4 for multitasking -->
 	<key>UISupportedInterfaceOrientations~ipad</key>
 	<array>
 		<string>UIInterfaceOrientationPortrait</string>
@@ -85,5 +104,15 @@
 		<string>UIInterfaceOrientationLandscapeLeft</string>
 		<string>UIInterfaceOrientationLandscapeRight</string>
 	</array>
+	
+	<!-- 🔔 REQUIRED: Remote notification support -->
+	<key>UIRemoteNotifications</key>
+	<true/>
+	
+	<!-- ✅ Push notification support -->
+	<key>UIApplicationLaunchOptionsRemoteNotificationKey</key>
+	<true/>
+	<key>UIApplicationSupportsIndirectInputEvents</key>
+	<true/>
 </dict>
 </plist>

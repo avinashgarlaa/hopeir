@@ -7,38 +7,105 @@ import 'package:hop_eir/splash_screen.dart';
 import 'firebase_options.dart';
 
 void main() async {
+  // 1. Ensure widgets binding
   WidgetsFlutterBinding.ensureInitialized();
-  await Firebase.initializeApp(options: DefaultFirebaseOptions.currentPlatform);
-  await FirebaseMessaging.instance.requestPermission();
-  await FirebaseMessaging.instance.requestPermission(
-    alert: true,
-    badge: true,
-    sound: true,
-  );
 
+  // 2. Initialize Firebase
+  await Firebase.initializeApp(options: DefaultFirebaseOptions.currentPlatform);
+
+  // 3. Initialize notifications
   await LocalNotificationHelper.initialize();
+
+  // 4. Request and store permission result
+  final hasPermission = await LocalNotificationHelper.requestPermissions();
+  print('🔔 Notification permission at start: $hasPermission');
+
+  // 5. Setup background message handler
   FirebaseMessaging.onBackgroundMessage(_firebaseMessagingBackgroundHandler);
 
+  // 6. Run the app
   runApp(const ProviderScope(child: MyApp()));
 }
 
+@pragma('vm:entry-point')
 Future<void> _firebaseMessagingBackgroundHandler(RemoteMessage message) async {
-  await Firebase.initializeApp();
-  // Optional: display a local notification if needed
-  LocalNotificationHelper.showNotification(
+  // Initialize Firebase in background
+  await Firebase.initializeApp(options: DefaultFirebaseOptions.currentPlatform);
+
+  // Initialize notifications in background
+  await LocalNotificationHelper.initialize();
+
+  // Show notification
+  await LocalNotificationHelper.showNotification(
     message.notification?.title ?? 'HopEir',
-    message.notification?.body ?? '',
+    message.notification?.body ?? 'You have a new notification',
+    payload: message.data['rideId']?.toString(),
   );
 }
 
-class MyApp extends StatelessWidget {
+class MyApp extends StatefulWidget {
   const MyApp({super.key});
+
+  @override
+  State<MyApp> createState() => _MyAppState();
+}
+
+class _MyAppState extends State<MyApp> with WidgetsBindingObserver {
+  @override
+  void initState() {
+    super.initState();
+    WidgetsBinding.instance.addObserver(this);
+    _setupForegroundNotifications();
+  }
+
+  @override
+  void dispose() {
+    WidgetsBinding.instance.removeObserver(this);
+    super.dispose();
+  }
+
+  @override
+  void didChangeAppLifecycleState(AppLifecycleState state) {
+    if (state == AppLifecycleState.resumed) {
+      _checkPermissionOnResume();
+    }
+  }
+
+  Future<void> _checkPermissionOnResume() async {
+    final hasPermission = await LocalNotificationHelper.hasPermission();
+    if (hasPermission) {
+      print('✅ Notification permission granted!');
+    }
+  }
+
+  void _setupForegroundNotifications() {
+    // Handle foreground messages
+    FirebaseMessaging.onMessage.listen((RemoteMessage message) {
+      LocalNotificationHelper.showNotification(
+        message.notification?.title ?? 'HopEir',
+        message.notification?.body ?? 'You have a new notification',
+        payload: message.data['rideId']?.toString(),
+      );
+    });
+
+    // Handle when app is opened from notification
+    FirebaseMessaging.onMessageOpenedApp.listen((RemoteMessage message) {
+      final rideId = message.data['rideId'];
+      if (rideId != null) {
+        print('📱 Opened from notification with rideId: $rideId');
+        // Navigate to ride details
+      }
+    });
+  }
 
   @override
   Widget build(BuildContext context) {
     return MaterialApp(
-      title: 'Project Alpha',
-      theme: ThemeData(primarySwatch: Colors.blue),
+      title: 'HopEir',
+      theme: ThemeData(
+        primarySwatch: Colors.blue,
+        fontFamily: 'Poppins',
+      ),
       debugShowCheckedModeBanner: false,
       home: const SplashScreen(),
     );

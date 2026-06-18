@@ -5,33 +5,55 @@ import 'package:hop_eir/features/stations/domain/usecases/get_all_stations.dart'
 import 'package:hop_eir/features/stations/domain/usecases/get_station_by_id.dart';
 import 'package:hop_eir/features/stations/domain/usecases/search_stations.dart';
 import '../../data/services/station_api_service.dart';
-
 import '../../data/models/station_model.dart';
 
+// API Service Provider
 final stationApiServiceProvider = Provider((ref) => StationApiService());
 
-final allStationsProvider = FutureProvider<List<StationModel>>((ref) async {
+// UseCase Providers
+final getAllStationsUseCaseProvider = Provider((ref) {
   final service = ref.read(stationApiServiceProvider);
-  return await GetAllStationsUseCase(service).call();
+  return GetAllStationsUseCase(service);
+});
+
+final getStationByIdUseCaseProvider = Provider((ref) {
+  final service = ref.read(stationApiServiceProvider);
+  return GetStationByIdUseCase(service);
+});
+
+final searchStationsUseCaseProvider = Provider((ref) {
+  final service = ref.read(stationApiServiceProvider);
+  return SearchStationsUseCase(service);
+});
+
+// Station Providers
+final allStationsProvider = FutureProvider<List<StationModel>>((ref) async {
+  final useCase = ref.read(getAllStationsUseCaseProvider);
+  return await useCase.call();
 });
 
 final stationByIdProvider = FutureProvider.family<StationModel, int>((
   ref,
   id,
 ) async {
-  final service = ref.read(stationApiServiceProvider);
-  return await GetStationByIdUseCase(service).call(id);
+  final useCase = ref.read(getStationByIdUseCaseProvider);
+  return await useCase.call(id);
 });
 
 final searchStationsProvider =
-    FutureProvider.family<List<StationModel>, String>((ref, query) async {
+    FutureProvider.family<StationSearchResult, String>((ref, query) async {
   if (query.trim().length < 3) {
-    return [];
+    return StationSearchResult(
+      matchedStations: [],
+      nearbyStations: [],
+    );
   }
 
-  final service = ref.read(stationApiServiceProvider);
+  final useCase = ref.read(searchStationsUseCaseProvider);
 
-  return await SearchStationsUseCase(service).call(query);
+  // Use the new method that returns separated results
+  return await useCase.callWithMatches(query);
 });
 
+// Additional providers
 final hasUnreadRequestsProvider = StateProvider<bool>((ref) => false);
