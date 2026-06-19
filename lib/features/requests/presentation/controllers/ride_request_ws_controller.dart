@@ -297,7 +297,7 @@ class RideRequestWSController extends StateNotifier<RideRequestWSState> {
   // ======================================================
   // REQUEST UPDATED
   // ======================================================
-  void _handleRequestUpdatedSafely(dynamic data) {
+  Future<void> _handleRequestUpdatedSafely(dynamic data) async {
     if (_isDisposed) return;
 
     try {
@@ -345,11 +345,7 @@ class RideRequestWSController extends StateNotifier<RideRequestWSState> {
       // ✅ Request Accepted (Passenger only)
       if (newStatus == "accepted") {
         if (myUserId != null && updated.passengerId.toString() == myUserId) {
-          debugPrint(
-            "🔔 Showing Notification → ✅ Ride Request Accepted",
-          );
-
-          LocalNotificationHelper.showNotification(
+          await LocalNotificationHelper.showNotification(
             "✅ Ride Request Accepted",
             "Driver accepted your ride request.",
           );
@@ -473,7 +469,7 @@ class RideRequestWSController extends StateNotifier<RideRequestWSState> {
     }
   }
 
-  void _handleRideRequestCreated(dynamic data) {
+  Future<void> _handleRideRequestCreated(dynamic data) async {
     try {
       if (data == null || data is! Map) {
         debugPrint("⚠️ Invalid ride_request_created payload");
@@ -512,19 +508,7 @@ class RideRequestWSController extends StateNotifier<RideRequestWSState> {
         hasUnread: true,
       );
 
-      debugPrint(
-        "🆕 New request added "
-        "id=${request.id} "
-        "ride=${request.rideId} "
-        "passenger=${request.passengerName}",
-      );
-
-      debugPrint(
-        "🔔 Showing Notification → 🚘 New Ride Request: "
-        "${request.passengerName} requested your ride",
-      );
-
-      LocalNotificationHelper.showNotification(
+      await LocalNotificationHelper.showNotification(
         "🚘 New Ride Request",
         "${request.passengerName} requested your ride",
       );

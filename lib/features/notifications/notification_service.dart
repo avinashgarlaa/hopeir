@@ -21,9 +21,9 @@ class LocalNotificationHelper {
 
     const DarwinInitializationSettings iosSettings =
         DarwinInitializationSettings(
-      requestAlertPermission: false,
-      requestBadgePermission: false,
-      requestSoundPermission: false,
+      requestAlertPermission: true,
+      requestBadgePermission: true,
+      requestSoundPermission: true,
     );
 
     const InitializationSettings initSettings = InitializationSettings(
@@ -139,12 +139,11 @@ class LocalNotificationHelper {
       if (Platform.isIOS) {
         final settings =
             await FirebaseMessaging.instance.getNotificationSettings();
+
         print('🔔 iOS permission status: ${settings.authorizationStatus}');
 
-        // Correct AuthorizationStatus constants
         return settings.authorizationStatus == AuthorizationStatus.authorized ||
-            settings.authorizationStatus == AuthorizationStatus.provisional ||
-            settings.authorizationStatus == AuthorizationStatus.notDetermined;
+            settings.authorizationStatus == AuthorizationStatus.provisional;
       }
 
       // For Android

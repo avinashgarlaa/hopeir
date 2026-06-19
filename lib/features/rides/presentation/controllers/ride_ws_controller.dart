@@ -4,6 +4,7 @@ import 'dart:convert';
 import 'package:flutter/foundation.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:geolocator/geolocator.dart';
+import 'package:hop_eir/features/rides/presentation/providers/ride_repository_provider.dart';
 import 'package:latlong2/latlong.dart';
 import 'package:web_socket_channel/web_socket_channel.dart';
 
@@ -113,6 +114,28 @@ class RideWSController extends StateNotifier<RideWSState> {
   Timer? _locationRetryTimer;
   bool _startingLocationStream = false;
 
+  Future<void> _initialize() async {
+    try {
+      final repo = ref.read(rideRepositoryProvider);
+
+      final ride = await repo.getRideById(
+        rideId: rideId,
+      );
+
+      state = state.copyWith(
+        status: ride.status.toLowerCase(),
+      );
+
+      debugPrint(
+        "🚘 Initial RideWS status ride#$rideId => ${ride.status}",
+      );
+    } catch (e) {
+      debugPrint(
+        "❌ Failed to load ride#$rideId => $e",
+      );
+    }
+  }
+
   RideWSController(this.ref, this.rideId)
       : super(
           RideWSState(
@@ -120,7 +143,7 @@ class RideWSController extends StateNotifier<RideWSState> {
             myUserId: ref.read(authNotifierProvider).user?.userId.toString(),
           ),
         ) {
-    Future.microtask(() => connect());
+    Future.microtask(_initialize);
   }
 
   bool get isConnected =>
@@ -562,33 +585,20 @@ class RideWSController extends StateNotifier<RideWSState> {
 
     switch (lower) {
       case 'completed':
-        debugPrint(
-          "🔔 Showing Notification → ✅ Ride Completed: Your ride has been completed successfully.",
-        );
-
-        LocalNotificationHelper.showNotification(
+        await LocalNotificationHelper.showNotification(
           '✅ Ride Completed',
           'Your ride has been completed successfully.',
         );
         break;
-
       case 'cancelled':
-        debugPrint(
-          "🔔 Showing Notification → ❌ Ride Cancelled: Your ride has been cancelled.",
-        );
-
-        LocalNotificationHelper.showNotification(
+        await LocalNotificationHelper.showNotification(
           '❌ Ride Cancelled',
           'Your ride has been cancelled.',
         );
         break;
 
       default:
-        debugPrint(
-          "🔔 Showing Notification → 🚘 Ride Update: Ride is now ${status.toUpperCase()}",
-        );
-
-        LocalNotificationHelper.showNotification(
+        await LocalNotificationHelper.showNotification(
           '🚘 Ride Update',
           'Ride is now ${status.toUpperCase()}',
         );
@@ -621,7 +631,7 @@ class RideWSController extends StateNotifier<RideWSState> {
     }
   }
 
-  void _handleChat(Map<String, dynamic> data) {
+  Future<void> _handleChat(Map<String, dynamic> data) async {
     final timestamp = DateTime.parse(data['timestamp']);
 
     final senderId = data['sender_id'].toString();
@@ -651,13 +661,9 @@ class RideWSController extends StateNotifier<RideWSState> {
     if (senderId != state.myUserId) {
       final senderName = state.role == "driver" ? "Passenger" : "Driver";
 
-      LocalNotificationHelper.showNotification(
+      await LocalNotificationHelper.showNotification(
         "💬 $senderName",
         message,
-      );
-
-      debugPrint(
-        "🔔 Chat notification from $senderName => $message",
       );
     }
   }

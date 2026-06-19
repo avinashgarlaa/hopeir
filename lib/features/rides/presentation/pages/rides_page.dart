@@ -5,6 +5,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:font_awesome_flutter/font_awesome_flutter.dart';
 import 'package:google_fonts/google_fonts.dart';
 import 'package:hop_eir/features/banner/presentation/banner_widget.dart';
+import 'package:hop_eir/features/notifications/notification_service.dart';
 import 'package:hop_eir/features/rides/presentation/pages/searched_rides_page.dart';
 import 'package:hop_eir/features/rides/presentation/widgets/message_banner.dart';
 import 'package:hop_eir/features/stations/data/models/station_model.dart';
@@ -116,16 +117,30 @@ class _RidesPageState extends ConsumerState<RidesPage> {
               ),
               child: Column(
                 children: [
-                  Align(
-                    alignment: Alignment.topLeft,
-                    child: Text(
-                      "Find Your Ride",
-                      style: GoogleFonts.luckiestGuy(
-                        fontWeight: FontWeight.w300,
-                        fontSize: isTablet ? 34 : 28,
-                        color: primaryColor,
+                  Row(
+                    children: [
+                      Align(
+                        alignment: Alignment.topLeft,
+                        child: Text(
+                          "Find Your Ride",
+                          style: GoogleFonts.luckiestGuy(
+                            fontWeight: FontWeight.w300,
+                            fontSize: isTablet ? 34 : 28,
+                            color: primaryColor,
+                          ),
+                        ),
                       ),
-                    ),
+                      const Spacer(),
+                      ElevatedButton(
+                        onPressed: () async {
+                          await LocalNotificationHelper.showNotification(
+                            'TEST',
+                            'Local notification test',
+                          );
+                        },
+                        child: const Text('Test'),
+                      )
+                    ],
                   ),
                   const Spacer(),
                   Card(

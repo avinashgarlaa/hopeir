@@ -209,22 +209,7 @@ class PassengerRideWSController extends StateNotifier<String> {
             if (newStatus == null) return;
 
             if (newStatus != state) {
-              final oldStatus = state;
-
-              debugPrint(
-                "🚘 STATUS CHANGED "
-                "ride#$rideId "
-                "$oldStatus -> $newStatus",
-              );
-
               state = newStatus;
-
-              if (newStatus == 'accepted' ||
-                  newStatus == 'started' ||
-                  newStatus == 'completed' ||
-                  newStatus == 'cancelled') {
-                _maybeNotify(newStatus);
-              }
 
               // ✅ reconnect tracking when ride becomes active
               if (_isWsAllowedStatus(newStatus)) {
@@ -235,10 +220,6 @@ class PassengerRideWSController extends StateNotifier<String> {
               if (_isFinalStatus(newStatus)) {
                 _isFinal = true;
                 _finalRides.add(rideId);
-
-                debugPrint(
-                  "🔒 Ride #$rideId finalized ($newStatus)",
-                );
 
                 markRideSocketDisconnected(rideId);
 
@@ -327,25 +308,6 @@ class PassengerRideWSController extends StateNotifier<String> {
     _reconnectTimer = Timer(delay, () {
       if (!_isDisposed) _connectSafely();
     });
-  }
-
-  void _maybeNotify(String status) {
-    final key = '$rideId:$status';
-
-    if (_notifiedRides.contains(key)) return;
-    if (status == 'not_found') return;
-
-    debugPrint(
-      "🔔 Showing Notification → 🚘 Ride Status Updated: "
-      "Your ride is now ${status.toUpperCase()}",
-    );
-
-    LocalNotificationHelper.showNotification(
-      '🚘 Ride Status Updated',
-      'Your ride is now ${status.toUpperCase()}',
-    );
-
-    _notifiedRides.add(key);
   }
 
   bool _isFinalStatus(String status) =>

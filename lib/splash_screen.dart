@@ -9,7 +9,6 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:google_fonts/google_fonts.dart';
 import 'package:hop_eir/features/auth/presentation/pages/login_screen.dart';
 import 'package:hop_eir/features/auth/presentation/providers/auth_provider.dart';
-import 'package:hop_eir/features/notifications/notification_service.dart';
 import 'package:hop_eir/features/requests/domain/entities/ride_request.dart';
 import 'package:hop_eir/features/requests/presentation/controllers/passanger_ride_ws_controller.dart';
 import 'package:hop_eir/features/requests/presentation/controllers/ride_request_ws_controller.dart';
@@ -165,6 +164,7 @@ class _SplashScreenState extends ConsumerState<SplashScreen>
   Future<void> _setupRideRequestsListener(
       ProviderContainer container, dynamic user) async {
     final requestWSProvider = rideRequestWSControllerProvider(user.userId);
+
     bool initialSyncDone = false;
     List<RideRequest> previousRequests = [];
     final Set<int> passengerWSConnectedRideIds = {};
@@ -183,6 +183,7 @@ class _SplashScreenState extends ConsumerState<SplashScreen>
       try {
         container.read(passengerRideWSProvider(rideId).notifier);
         debugPrint("🚀 Triggered PassengerRideWSController for ride: $rideId");
+
         container.read(rideWSControllerProvider(rideId).notifier).connect();
       } catch (e) {
         debugPrint("❌ Error triggering passenger ride #$rideId: $e");
@@ -197,11 +198,13 @@ class _SplashScreenState extends ConsumerState<SplashScreen>
         if (!initialSyncDone) {
           initialSyncDone = true;
           previousRequests = List.from(currentRequests);
-          debugPrint("🛑 Skip notifications for initial_state sync");
+          debugPrint("🛑 Skip initial sync");
           return;
         }
 
-        final oldMap = {for (var r in previousRequests) r.id: r};
+        final oldMap = {
+          for (final r in previousRequests) r.id: r,
+        };
 
         for (final r in currentRequests) {
           final old = oldMap[r.id];
@@ -213,18 +216,7 @@ class _SplashScreenState extends ConsumerState<SplashScreen>
           if (oldStatus != newStatus) {
             final isDriver = r.passengerId != user.userId;
 
-            LocalNotificationHelper.showNotification(
-              isDriver
-                  ? '🔁 Ride Request Updated'
-                  : '📢 Request Status Updated',
-              '${isDriver ? "Request from ${r.passengerName}" : "Your request"} is now ${r.status.toUpperCase()}',
-            );
-
             if (!isDriver && newStatus == "accepted") {
-              LocalNotificationHelper.showNotification(
-                '✅ Ride Accepted',
-                'Driver accepted your request. Ride tracking started.',
-              );
               await triggerPassengerRideWS(r.rideId);
             }
           }
@@ -240,28 +232,29 @@ class _SplashScreenState extends ConsumerState<SplashScreen>
       ProviderContainer container, dynamic user) async {
     try {
       final rideController = container.read(rideControllerProvider.notifier);
+
       final createdRides = await rideController.fetchCreatedRides(
         currentUserId: user.userId,
       );
 
-      final createdRideIds = createdRides.map((r) => r.id).toSet();
+      for (final ride in createdRides) {
+        final status = ride.status.toLowerCase();
 
-      for (final rideId in createdRideIds) {
+        if (status == 'completed' || status == 'cancelled') {
+          debugPrint("🛑 Skipping DRIVER WS for ride #${ride.id} ($status)");
+          continue;
+        }
+
         try {
-          final ride = await container.read(getRideByIdUsecaseProvider)(rideId);
-          final status = ride.status.toLowerCase();
+          container.read(rideWSControllerProvider(ride.id).notifier).connect();
 
-          if (status == 'completed' || status == 'cancelled') {
-            debugPrint("🛑 Skipping DRIVER WS for ride #$rideId ($status)");
-            continue;
-          }
-
-          final ws = container.read(rideWSControllerProvider(rideId).notifier);
-          ws.connect();
-
-          debugPrint("🚀 Connected DRIVER WS for ride: $rideId status=$status");
+          debugPrint(
+            "🚀 Connected DRIVER WS for ride: ${ride.id} status=$status",
+          );
         } catch (e) {
-          debugPrint("❌ Error fetching ride #$rideId for driver: $e");
+          debugPrint(
+            "❌ Error connecting DRIVER WS for ride #${ride.id}: $e",
+          );
         }
       }
     } catch (e) {
@@ -275,12 +268,15 @@ class _SplashScreenState extends ConsumerState<SplashScreen>
       await Future.delayed(const Duration(seconds: 2));
 
       final requestWSProvider = rideRequestWSControllerProvider(user.userId);
+
       final requests = container.read(requestWSProvider).incomingRequests;
 
       final rideController = container.read(rideControllerProvider.notifier);
+
       final createdRides = await rideController.fetchCreatedRides(
         currentUserId: user.userId,
       );
+
       final createdRideIds = createdRides.map((r) => r.id).toSet();
 
       final joinedRideIds = requests
@@ -291,29 +287,32 @@ class _SplashScreenState extends ConsumerState<SplashScreen>
           .toSet()
           .difference(createdRideIds);
 
-      final Set<int> passengerWSConnectedRideIds = {};
-
-      Future<void> triggerPassengerRideWS(int rideId) async {
-        if (passengerWSConnectedRideIds.contains(rideId)) return;
-
-        if (isRideFinalCached(rideId)) {
-          passengerWSConnectedRideIds.add(rideId);
-          return;
-        }
-
-        passengerWSConnectedRideIds.add(rideId);
-
-        try {
-          container.read(passengerRideWSProvider(rideId).notifier);
-          container.read(rideWSControllerProvider(rideId).notifier).connect();
-          debugPrint("🚀 Connected PASSENGER WS for ride: $rideId");
-        } catch (e) {
-          debugPrint("❌ Error connecting passenger ride #$rideId: $e");
-        }
-      }
+      final connectedRideIds = <int>{};
 
       for (final rideId in joinedRideIds) {
-        await triggerPassengerRideWS(rideId);
+        if (connectedRideIds.contains(rideId)) continue;
+
+        if (isRideFinalCached(rideId)) {
+          debugPrint("🔒 Passenger ride #$rideId already final");
+          connectedRideIds.add(rideId);
+          continue;
+        }
+
+        try {
+          connectedRideIds.add(rideId);
+
+          container.read(passengerRideWSProvider(rideId).notifier);
+
+          container.read(rideWSControllerProvider(rideId).notifier).connect();
+
+          debugPrint(
+            "🚀 Connected PASSENGER WS for ride: $rideId",
+          );
+        } catch (e) {
+          debugPrint(
+            "❌ Error connecting passenger ride #$rideId: $e",
+          );
+        }
       }
     } catch (e) {
       debugPrint("❌ Error setting up passenger rides: $e");

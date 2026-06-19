@@ -25,7 +25,6 @@ import 'package:timeago/timeago.dart' as timeago;
 
 import 'package:hop_eir/features/auth/presentation/providers/auth_provider.dart';
 import 'package:hop_eir/features/requests/domain/entities/ride_request.dart';
-import 'package:hop_eir/features/requests/presentation/controllers/passanger_ride_ws_controller.dart';
 import 'package:hop_eir/features/requests/presentation/controllers/ride_request_ws_controller.dart';
 import 'package:hop_eir/features/rides/presentation/controllers/ride_ws_controller.dart';
 import 'package:hop_eir/features/rides/presentation/pages/ride_chat_page.dart';
@@ -100,20 +99,22 @@ class SentRequestsPage extends ConsumerWidget {
       ) {
         final request = requests[index];
 
-        final isAccepted = request.status.toLowerCase() == 'accepted';
+        String rideStatus = "pending";
 
-        final rideStatus = isAccepted
-            ? ref.watch(
-                passengerRideWSProvider(
-                  request.rideId,
-                ),
-              )
-            : request.status;
+        if (request.status.toLowerCase() == 'accepted') {
+          final rideWsState = ref.watch(
+            rideWSControllerProvider(request.rideId),
+          );
 
-        final canChat = isAccepted &&
-            rideStatus != "completed" &&
-            rideStatus != "cancelled";
+          if (rideWsState.status.isNotEmpty &&
+              rideWsState.status.toLowerCase() != 'pending') {
+            rideStatus = rideWsState.status;
+          }
+        }
 
+        final canChat = request.status.toLowerCase() == 'accepted' &&
+            rideStatus.toLowerCase() != 'completed' &&
+            rideStatus.toLowerCase() != 'cancelled';
         return Padding(
           padding: const EdgeInsets.only(
             bottom: 14,
