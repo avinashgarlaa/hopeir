@@ -12,6 +12,7 @@ void main() async {
 
   // 2. Initialize Firebase
   await Firebase.initializeApp(options: DefaultFirebaseOptions.currentPlatform);
+  // Get FCM token
 
   // 3. Initialize notifications
   await LocalNotificationHelper.initialize();

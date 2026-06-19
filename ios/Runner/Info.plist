@@ -41,6 +41,11 @@
 	</array>
 	<key>LSRequiresIPhoneOS</key>
 	<true/>
+	<key>NSAppTransportSecurity</key>
+	<dict>
+		<key>NSAllowsArbitraryLoads</key>
+		<true/>
+	</dict>
 	<key>NSFaceIDUsageDescription</key>
 	<string>This app uses Face ID to sign in quickly and securely.</string>
 	<key>NSLocalNetworkUsageDescription</key>
@@ -53,10 +58,10 @@
 	<string>HopÉir needs your location to find nearby rides and track your driver in real-time.</string>
 	<key>NSNotificationUsageDescription</key>
 	<string>HopÉir uses notifications to keep you updated about your rides.</string>
+	<key>NSUserNotificationAlertStyle</key>
+	<string>alert</string>
 	<key>NSUserNotificationUsageDescription</key>
 	<string>HopÉir uses notifications to alert you about ride updates, driver locations, and important ride information.</string>
-	<key>UIApplicationLaunchOptionsRemoteNotificationKey</key>
-	<true/>
 	<key>UIApplicationSceneManifest</key>
 	<dict>
 		<key>UIApplicationSupportsMultipleScenes</key>
@@ -88,8 +93,6 @@
 	<string>LaunchScreen</string>
 	<key>UIMainStoryboardFile</key>
 	<string>Main</string>
-	<key>UIRemoteNotifications</key>
-	<true/>
 	<key>UIStatusBarHidden</key>
 	<false/>
 	<key>UISupportedInterfaceOrientations~ipad</key>

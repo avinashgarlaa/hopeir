@@ -12,7 +12,6 @@ import 'package:web_socket_channel/web_socket_channel.dart';
 import 'package:web_socket_channel/io.dart';
 
 import 'package:hop_eir/features/auth/presentation/providers/auth_provider.dart';
-import 'package:hop_eir/features/notifications/notification_service.dart';
 
 // ✅ important for live location receive
 import 'package:hop_eir/features/rides/presentation/controllers/ride_ws_controller.dart';
@@ -23,7 +22,6 @@ final passengerRideWSProvider =
 );
 
 // ✅ Global caches for ride status
-final Set<String> _notifiedRides = {};
 final Set<int> _finalRides = {};
 
 // ✅ Public helper function to check if a ride is already final (cached)

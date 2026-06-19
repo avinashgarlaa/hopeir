@@ -133,13 +133,68 @@ class _RidesPageState extends ConsumerState<RidesPage> {
                       const Spacer(),
                       ElevatedButton(
                         onPressed: () async {
-                          await LocalNotificationHelper.showNotification(
-                            'TEST',
-                            'Local notification test',
+                          // Clear any previous notifications
+                          await LocalNotificationHelper
+                              .cancelAllNotifications();
+
+                          // Step 1: Check if initialized
+                          print('🔔 Step 1: Checking initialization...');
+
+                          // Step 2: Check permission status
+                          print('🔔 Step 2: Checking permission...');
+                          bool hasPermission =
+                              await LocalNotificationHelper.hasPermission();
+                          print('  → Permission status: $hasPermission');
+
+                          if (!hasPermission) {
+                            print('🔔 Step 3: Requesting permission...');
+                            bool requested = await LocalNotificationHelper
+                                .requestPermissions();
+                            print('  → Permission requested: $requested');
+
+                            if (!requested) {
+                              print('❌ Permission denied!');
+                              // Show dialog to enable in settings
+                              if (context.mounted) {
+                                await LocalNotificationHelper
+                                    .showEnableNotificationDialog(context);
+                              }
+                              return;
+                            }
+                          }
+
+                          // Step 4: Show notification
+                          print('🔔 Step 4: Showing notification...');
+                          bool result =
+                              await LocalNotificationHelper.showNotification(
+                            '🚗 HopÉir Test',
+                            'This is a test notification!\nTime: ${DateTime.now().toLocal()}',
+                            payload:
+                                'test_payload_${DateTime.now().millisecondsSinceEpoch}',
                           );
+
+                          print('  → Notification result: $result');
+
+                          // Step 5: Show feedback
+                          if (context.mounted) {
+                            ScaffoldMessenger.of(context).showSnackBar(
+                              SnackBar(
+                                content: Text(
+                                  result
+                                      ? '✅ Notification sent! Check your notifications.'
+                                      : '❌ Failed to send notification. Check logs.',
+                                ),
+                                backgroundColor:
+                                    result ? Colors.green : Colors.red,
+                                duration: const Duration(seconds: 3),
+                              ),
+                            );
+                          }
+
+                          print('🔔 Step 5: Test complete ✅');
                         },
-                        child: const Text('Test'),
-                      )
+                        child: const Text('🔔 Test'),
+                      ),
                     ],
                   ),
                   const Spacer(),

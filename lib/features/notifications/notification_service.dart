@@ -24,6 +24,7 @@ class LocalNotificationHelper {
       requestAlertPermission: true,
       requestBadgePermission: true,
       requestSoundPermission: true,
+      requestProvisionalPermission: true,
     );
 
     const InitializationSettings initSettings = InitializationSettings(
@@ -62,33 +63,32 @@ class LocalNotificationHelper {
       _permissionRequested = true;
       print('🔔 Requesting notification permissions...');
 
-      // For iOS
+      // For iOS - use FlutterLocalNotificationsPlugin
       if (Platform.isIOS) {
         final plugin =
             _notificationsPlugin.resolvePlatformSpecificImplementation<
                 IOSFlutterLocalNotificationsPlugin>();
 
         if (plugin != null) {
-          // Handle nullable bool result
+          // Request permissions through the plugin
           final bool? result = await plugin.requestPermissions(
             alert: true,
             badge: true,
             sound: true,
+            provisional: true,
           );
 
-          // Convert bool? to bool with null safety
           _permissionGranted = result ?? false;
           print(
               '🔔 iOS permission result: ${_permissionGranted ? "GRANTED" : "DENIED"}');
 
           // Also request through Firebase Messaging for remote notifications
-          if (_permissionGranted) {
-            await FirebaseMessaging.instance.requestPermission(
-              alert: true,
-              badge: true,
-              sound: true,
-            );
-          }
+          await FirebaseMessaging.instance.requestPermission(
+            alert: true,
+            badge: true,
+            sound: true,
+            provisional: true,
+          );
 
           return _permissionGranted;
         }
@@ -135,15 +135,18 @@ class LocalNotificationHelper {
   // Check if permissions are granted without requesting
   static Future<bool> hasPermission() async {
     try {
-      // For iOS - Use Firebase Messaging to check permission
+      // For iOS - Use Firebase Messaging to check
       if (Platform.isIOS) {
         final settings =
             await FirebaseMessaging.instance.getNotificationSettings();
-
         print('🔔 iOS permission status: ${settings.authorizationStatus}');
 
-        return settings.authorizationStatus == AuthorizationStatus.authorized ||
-            settings.authorizationStatus == AuthorizationStatus.provisional;
+        final bool hasPermission =
+            settings.authorizationStatus == AuthorizationStatus.authorized ||
+                settings.authorizationStatus == AuthorizationStatus.provisional;
+
+        print('🔔 iOS has permission: $hasPermission');
+        return hasPermission;
       }
 
       // For Android
@@ -165,12 +168,20 @@ class LocalNotificationHelper {
     String title,
     String body, {
     String? payload,
+    int? id,
   }) async {
     // Check permission before showing
     final bool hasNotificationPermission = await hasPermission();
     if (!hasNotificationPermission) {
       print('❌ Notification permission not granted. Cannot show: $title');
-      return false;
+      // Try to request permission again
+      await requestPermissions();
+      // Check again
+      final bool retryPermission = await hasPermission();
+      if (!retryPermission) {
+        print('❌ Still no permission after retry. Cannot show: $title');
+        return false;
+      }
     }
 
     try {
@@ -186,6 +197,8 @@ class LocalNotificationHelper {
         playSound: true,
         enableVibration: true,
         channelShowBadge: true,
+        visibility: NotificationVisibility.public,
+        icon: '@mipmap/ic_launcher',
       );
 
       const DarwinNotificationDetails iosDetails = DarwinNotificationDetails(
@@ -193,6 +206,8 @@ class LocalNotificationHelper {
         presentBadge: true,
         presentSound: true,
         interruptionLevel: InterruptionLevel.active,
+        threadIdentifier: 'ride_requests',
+        categoryIdentifier: 'ride_request_category',
       );
 
       const NotificationDetails platformDetails = NotificationDetails(
@@ -200,10 +215,11 @@ class LocalNotificationHelper {
         iOS: iosDetails,
       );
 
-      final id = DateTime.now().millisecondsSinceEpoch ~/ 1000;
+      final notificationId =
+          id ?? DateTime.now().millisecondsSinceEpoch ~/ 1000;
 
       await _notificationsPlugin.show(
-        id,
+        notificationId,
         title,
         body,
         platformDetails,

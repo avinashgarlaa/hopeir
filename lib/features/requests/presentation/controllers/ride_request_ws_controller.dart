@@ -9,6 +9,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:hop_eir/features/auth/presentation/providers/auth_provider.dart';
 import 'package:hop_eir/features/notifications/notification_service.dart';
 import 'package:hop_eir/features/requests/presentation/controllers/passanger_ride_ws_controller.dart';
+import 'package:hop_eir/features/stations/presentation/providers/providers.dart';
 import 'package:web_socket_channel/web_socket_channel.dart';
 import 'package:web_socket_channel/status.dart' as status;
 
@@ -345,6 +346,7 @@ class RideRequestWSController extends StateNotifier<RideRequestWSState> {
       // ✅ Request Accepted (Passenger only)
       if (newStatus == "accepted") {
         if (myUserId != null && updated.passengerId.toString() == myUserId) {
+          ref.read(hasUnreadRequestsProvider.notifier).state = true;
           await LocalNotificationHelper.showNotification(
             "✅ Ride Request Accepted",
             "Driver accepted your ride request.",
@@ -357,11 +359,8 @@ class RideRequestWSController extends StateNotifier<RideRequestWSState> {
       // ✅ Request Rejected (Passenger only)
       if (newStatus == "rejected") {
         if (myUserId != null && updated.passengerId.toString() == myUserId) {
-          debugPrint(
-            "🔔 Showing Notification → ❌ Ride Request Rejected",
-          );
-
-          LocalNotificationHelper.showNotification(
+          ref.read(hasUnreadRequestsProvider.notifier).state = true;
+          await LocalNotificationHelper.showNotification(
             "❌ Ride Request Rejected",
             "Driver rejected your ride request.",
           );
@@ -507,7 +506,7 @@ class RideRequestWSController extends StateNotifier<RideRequestWSState> {
         lastUpdated: DateTime.now(),
         hasUnread: true,
       );
-
+      ref.read(hasUnreadRequestsProvider.notifier).state = true;
       await LocalNotificationHelper.showNotification(
         "🚘 New Ride Request",
         "${request.passengerName} requested your ride",

@@ -167,52 +167,51 @@ class _FancyBottomNavigationBar extends ConsumerWidget {
 
     return GestureDetector(
       onTap: () => onTabSelected(index),
-      child: Stack(
-        children: [
-          AnimatedContainer(
-            duration: const Duration(milliseconds: 250),
-            padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 10),
-            decoration: BoxDecoration(
-              color:
-                  isSelected ? darkBlue.withOpacity(0.05) : Colors.transparent,
-              borderRadius: BorderRadius.circular(20),
-            ),
-            child: Column(
-              mainAxisSize: MainAxisSize.min,
+      child: Container(
+        padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 10),
+        decoration: BoxDecoration(
+          color: isSelected ? darkBlue.withOpacity(0.05) : Colors.transparent,
+          borderRadius: BorderRadius.circular(20),
+        ),
+        child: Column(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            // Wrap icon in Stack for badge positioning
+            Stack(
+              clipBehavior: Clip.none, // Allow badge to overflow
               children: [
                 isSelected
-                    ? gradientIcon(FaIcon(icon, size: 15, color: Colors.white))
+                    ? gradientIcon(FaIcon(icon, size: 18, color: Colors.white))
                     : FaIcon(icon,
                         size: 18, color: Colors.black.withOpacity(0.4)),
-                const SizedBox(height: 4),
-                Text(
-                  label,
-                  style: TextStyle(
-                    fontSize: 12,
-                    color: isSelected
-                        ? const Color.fromARGB(255, 97, 147, 46)
-                        : Colors.black.withOpacity(0.5),
-                    fontWeight:
-                        isSelected ? FontWeight.bold : FontWeight.normal,
+                if (showDot)
+                  Positioned(
+                    right: -4, // Position relative to icon
+                    top: -4, // Position relative to icon
+                    child: Container(
+                      width: 10,
+                      height: 10,
+                      decoration: const BoxDecoration(
+                        color: Colors.red,
+                        shape: BoxShape.circle,
+                      ),
+                    ),
                   ),
-                ),
               ],
             ),
-          ),
-          if (showDot)
-            Positioned(
-              right: 6,
-              top: 4,
-              child: Container(
-                width: 9,
-                height: 9,
-                decoration: const BoxDecoration(
-                  color: Colors.red,
-                  shape: BoxShape.circle,
-                ),
+            const SizedBox(height: 4),
+            Text(
+              label,
+              style: TextStyle(
+                fontSize: 12,
+                color: isSelected
+                    ? const Color.fromARGB(255, 97, 147, 46)
+                    : Colors.black.withOpacity(0.5),
+                fontWeight: isSelected ? FontWeight.bold : FontWeight.normal,
               ),
             ),
-        ],
+          ],
+        ),
       ),
     );
   }
