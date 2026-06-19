@@ -1,10 +1,7 @@
 // ignore_for_file: avoid_print
 
 import 'dart:async';
-import 'package:firebase_core/firebase_core.dart';
-import 'package:firebase_messaging/firebase_messaging.dart';
 import 'package:flutter/material.dart';
-import 'package:flutter_local_notifications/flutter_local_notifications.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:google_fonts/google_fonts.dart';
 import 'package:hop_eir/features/auth/presentation/pages/login_screen.dart';
@@ -518,67 +515,4 @@ class _ArcPainter extends CustomPainter {
 
   @override
   bool shouldRepaint(covariant CustomPainter oldDelegate) => false;
-}
-
-// Global notification plugin instance
-final FlutterLocalNotificationsPlugin flutterLocalNotificationsPlugin =
-    FlutterLocalNotificationsPlugin();
-
-// Setup FCM notifications
-Future<void> setupFCM() async {
-  try {
-    FirebaseMessaging messaging = FirebaseMessaging.instance;
-    await messaging.requestPermission();
-
-    final token = await messaging.getToken();
-    print("📱 FCM Token: $token");
-
-    const AndroidInitializationSettings androidInit =
-        AndroidInitializationSettings('@mipmap/ic_launcher');
-
-    const InitializationSettings initSettings = InitializationSettings(
-      android: androidInit,
-    );
-
-    await flutterLocalNotificationsPlugin.initialize(initSettings);
-
-    // Handle foreground messages
-    FirebaseMessaging.onMessage.listen((RemoteMessage message) {
-      if (message.notification != null) {
-        final notification = message.notification!;
-        flutterLocalNotificationsPlugin.show(
-          message.notification.hashCode,
-          notification.title,
-          notification.body,
-          const NotificationDetails(
-            android: AndroidNotificationDetails(
-              'default_channel',
-              'Default Notifications',
-              channelDescription: 'General notifications',
-              importance: Importance.max,
-              priority: Priority.high,
-            ),
-          ),
-        );
-      }
-    });
-
-    // Handle app opened from notification
-    FirebaseMessaging.onMessageOpenedApp.listen((message) {
-      print("📬 User opened app from notification: ${message.data}");
-    });
-
-    // Background handler
-    FirebaseMessaging.onBackgroundMessage(_firebaseMessagingBackgroundHandler);
-
-    print("✅ FCM setup completed");
-  } catch (e) {
-    print("❌ FCM setup error: $e");
-  }
-}
-
-@pragma('vm:entry-point')
-Future<void> _firebaseMessagingBackgroundHandler(RemoteMessage message) async {
-  await Firebase.initializeApp();
-  print("🔕 Handling background FCM: ${message.messageId}");
 }

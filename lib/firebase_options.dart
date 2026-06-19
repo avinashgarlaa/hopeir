@@ -41,48 +41,48 @@ class DefaultFirebaseOptions {
   }
 
   static const FirebaseOptions web = FirebaseOptions(
-    apiKey: 'AIzaSyBR4ZDbjmvU4S38BX4BaX0ffQwh7-oUMSQ',
-    appId: '1:919318565310:web:7fcf220a0387bf29b829ef',
-    messagingSenderId: '919318565310',
-    projectId: 'hopeir-38770',
-    authDomain: 'hopeir-38770.firebaseapp.com',
-    storageBucket: 'hopeir-38770.firebasestorage.app',
-    measurementId: 'G-DNVKKD0PLP',
+    apiKey: 'AIzaSyDPFa8-Rv_u1rBtVCpOfeLrI3gP5JU2wus',
+    appId: '1:7745812834:web:ce2736ebdc006de7d2d43b',
+    messagingSenderId: '7745812834',
+    projectId: 'hopeir2025',
+    authDomain: 'hopeir2025.firebaseapp.com',
+    storageBucket: 'hopeir2025.firebasestorage.app',
+    measurementId: 'G-83T7CBGKXK',
   );
 
   static const FirebaseOptions android = FirebaseOptions(
-    apiKey: 'AIzaSyD_MmHNbotnsgrK7BrxuG7FeaTZih3zjfg',
-    appId: '1:919318565310:android:0b022c7158ab7724b829ef',
-    messagingSenderId: '919318565310',
-    projectId: 'hopeir-38770',
-    storageBucket: 'hopeir-38770.firebasestorage.app',
+    apiKey: 'AIzaSyDEze1EQrE3yoBuKiK_CDrRBY42U_FriAQ',
+    appId: '1:7745812834:android:09c52cc039433d76d2d43b',
+    messagingSenderId: '7745812834',
+    projectId: 'hopeir2025',
+    storageBucket: 'hopeir2025.firebasestorage.app',
   );
 
   static const FirebaseOptions ios = FirebaseOptions(
-    apiKey: 'AIzaSyB9nKB8nbQyMbx-MUzkG_x-8Z8ijffBwpk',
-    appId: '1:919318565310:ios:2ef10bf569d216b8b829ef',
-    messagingSenderId: '919318565310',
-    projectId: 'hopeir-38770',
-    storageBucket: 'hopeir-38770.firebasestorage.app',
-    iosBundleId: 'com.example.projectAlpha',
+    apiKey: 'AIzaSyDFrRCaEKORjDTGhynNrGtRjmUUE1CWiVg',
+    appId: '1:7745812834:ios:d74485446ebf7dd9d2d43b',
+    messagingSenderId: '7745812834',
+    projectId: 'hopeir2025',
+    storageBucket: 'hopeir2025.firebasestorage.app',
+    iosBundleId: 'com.hopeir.app',
   );
 
   static const FirebaseOptions macos = FirebaseOptions(
-    apiKey: 'AIzaSyB9nKB8nbQyMbx-MUzkG_x-8Z8ijffBwpk',
-    appId: '1:919318565310:ios:2ef10bf569d216b8b829ef',
-    messagingSenderId: '919318565310',
-    projectId: 'hopeir-38770',
-    storageBucket: 'hopeir-38770.firebasestorage.app',
+    apiKey: 'AIzaSyDFrRCaEKORjDTGhynNrGtRjmUUE1CWiVg',
+    appId: '1:7745812834:ios:5d93291e9d62b74bd2d43b',
+    messagingSenderId: '7745812834',
+    projectId: 'hopeir2025',
+    storageBucket: 'hopeir2025.firebasestorage.app',
     iosBundleId: 'com.example.projectAlpha',
   );
 
   static const FirebaseOptions windows = FirebaseOptions(
-    apiKey: 'AIzaSyBR4ZDbjmvU4S38BX4BaX0ffQwh7-oUMSQ',
-    appId: '1:919318565310:web:f3f8e8e2e77d5e36b829ef',
-    messagingSenderId: '919318565310',
-    projectId: 'hopeir-38770',
-    authDomain: 'hopeir-38770.firebaseapp.com',
-    storageBucket: 'hopeir-38770.firebasestorage.app',
-    measurementId: 'G-5JJVTCLWWK',
+    apiKey: 'AIzaSyDPFa8-Rv_u1rBtVCpOfeLrI3gP5JU2wus',
+    appId: '1:7745812834:web:6b5b80c42075f05cd2d43b',
+    messagingSenderId: '7745812834',
+    projectId: 'hopeir2025',
+    authDomain: 'hopeir2025.firebaseapp.com',
+    storageBucket: 'hopeir2025.firebasestorage.app',
+    measurementId: 'G-EKJ9DQ8Q1D',
   );
 }

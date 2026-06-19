@@ -1,13 +1,13 @@
 {
   "project_info": {
-    "project_number": "919318565310",
-    "project_id": "hopeir-38770",
-    "storage_bucket": "hopeir-38770.firebasestorage.app"
+    "project_number": "7745812834",
+    "project_id": "hopeir2025",
+    "storage_bucket": "hopeir2025.firebasestorage.app"
   },
   "client": [
     {
       "client_info": {
-        "mobilesdk_app_id": "1:919318565310:android:0b022c7158ab7724b829ef",
+        "mobilesdk_app_id": "1:7745812834:android:09c52cc039433d76d2d43b",
         "android_client_info": {
           "package_name": "com.hopeir.app"
         }
@@ -15,7 +15,7 @@
       "oauth_client": [],
       "api_key": [
         {
-          "current_key": "AIzaSyD_MmHNbotnsgrK7BrxuG7FeaTZih3zjfg"
+          "current_key": "AIzaSyDEze1EQrE3yoBuKiK_CDrRBY42U_FriAQ"
         }
       ],
       "services": {
