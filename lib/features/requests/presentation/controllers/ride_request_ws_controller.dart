@@ -348,7 +348,7 @@ class RideRequestWSController extends StateNotifier<RideRequestWSState> {
         if (myUserId != null && updated.passengerId.toString() == myUserId) {
           ref.read(hasUnreadRequestsProvider.notifier).state = true;
           await LocalNotificationHelper.showNotification(
-            "✅ Ride Request Accepted",
+            "Ride Request Accepted",
             "Driver accepted your ride request.",
           );
         }
@@ -361,7 +361,7 @@ class RideRequestWSController extends StateNotifier<RideRequestWSState> {
         if (myUserId != null && updated.passengerId.toString() == myUserId) {
           ref.read(hasUnreadRequestsProvider.notifier).state = true;
           await LocalNotificationHelper.showNotification(
-            "❌ Ride Request Rejected",
+            "Ride Request Rejected",
             "Driver rejected your ride request.",
           );
         }
@@ -508,7 +508,7 @@ class RideRequestWSController extends StateNotifier<RideRequestWSState> {
       );
       ref.read(hasUnreadRequestsProvider.notifier).state = true;
       await LocalNotificationHelper.showNotification(
-        "🚘 New Ride Request",
+        "New Ride Request",
         "${request.passengerName} requested your ride",
       );
     } catch (e, st) {

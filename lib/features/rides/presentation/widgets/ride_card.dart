@@ -588,20 +588,63 @@ class _RideCardState extends ConsumerState<RideCard> {
   }
 
   Widget _buildChatButton() {
+    final unreadMap = ref.watch(unreadRideProvider);
+    final unreadCount = unreadMap[widget.ride.id] ?? 0;
+
     return SizedBox(
       height: 42,
       child: ElevatedButton.icon(
         onPressed: () {
+          ref.read(unreadRideProvider.notifier).clearUnread(widget.ride.id);
+
           Navigator.push(
             context,
             MaterialPageRoute(
-              builder: (_) => RideChatPage(rideId: widget.ride.id),
+              builder: (_) => RideChatPage(
+                rideId: widget.ride.id,
+              ),
             ),
           );
         },
-        icon: const Icon(Icons.chat_bubble_rounded, size: 16),
+        icon: Stack(
+          clipBehavior: Clip.none,
+          children: [
+            const Icon(
+              Icons.chat_bubble_rounded,
+              size: 16,
+            ),
+            if (unreadCount > 0)
+              Positioned(
+                right: -10,
+                top: -8,
+                child: Container(
+                  padding: const EdgeInsets.symmetric(
+                    horizontal: 4,
+                    vertical: 2,
+                  ),
+                  constraints: const BoxConstraints(
+                    minWidth: 18,
+                    minHeight: 18,
+                  ),
+                  decoration: const BoxDecoration(
+                    color: Colors.red,
+                    shape: BoxShape.circle,
+                  ),
+                  child: Text(
+                    unreadCount > 99 ? '99+' : unreadCount.toString(),
+                    textAlign: TextAlign.center,
+                    style: const TextStyle(
+                      color: Colors.white,
+                      fontSize: 10,
+                      fontWeight: FontWeight.bold,
+                    ),
+                  ),
+                ),
+              ),
+          ],
+        ),
         label: Text(
-          "Chat",
+          unreadCount > 0 ? "Chat ($unreadCount)" : "Chat",
           style: GoogleFonts.poppins(
             fontWeight: FontWeight.w600,
             fontSize: 11,
@@ -611,7 +654,10 @@ class _RideCardState extends ConsumerState<RideCard> {
           backgroundColor: const Color(0xFF6C757D),
           foregroundColor: Colors.white,
           elevation: 0,
-          padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 10),
+          padding: const EdgeInsets.symmetric(
+            horizontal: 16,
+            vertical: 10,
+          ),
           shape: RoundedRectangleBorder(
             borderRadius: BorderRadius.circular(12),
           ),

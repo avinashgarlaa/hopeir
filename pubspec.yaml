@@ -15,7 +15,6 @@ dependencies:
   flutter_riverpod: ^2.6.1
   dartz: ^0.10.1
   shared_preferences: ^2.5.3
-  video_player: ^2.9.5
   google_fonts: ^6.2.1
   google_sign_in: ^7.1.0
   intl: ^0.20.2

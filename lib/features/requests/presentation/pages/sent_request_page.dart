@@ -639,14 +639,31 @@ class _RideCard extends ConsumerWidget {
                               const Icon(Icons.chat_bubble_rounded),
                               if (unreadCount > 0)
                                 Positioned(
-                                  top: -2,
-                                  right: -2,
+                                  right: -10,
+                                  top: -8,
                                   child: Container(
-                                    width: 10,
-                                    height: 10,
+                                    padding: const EdgeInsets.symmetric(
+                                      horizontal: 4,
+                                      vertical: 2,
+                                    ),
+                                    constraints: const BoxConstraints(
+                                      minWidth: 18,
+                                      minHeight: 18,
+                                    ),
                                     decoration: const BoxDecoration(
                                       color: Colors.red,
                                       shape: BoxShape.circle,
+                                    ),
+                                    child: Text(
+                                      unreadCount > 99
+                                          ? '99+'
+                                          : unreadCount.toString(),
+                                      textAlign: TextAlign.center,
+                                      style: const TextStyle(
+                                        color: Colors.white,
+                                        fontSize: 10,
+                                        fontWeight: FontWeight.bold,
+                                      ),
                                     ),
                                   ),
                                 ),

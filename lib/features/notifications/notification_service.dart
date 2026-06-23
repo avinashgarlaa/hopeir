@@ -75,7 +75,7 @@ class LocalNotificationHelper {
             alert: true,
             badge: true,
             sound: true,
-            provisional: true,
+            provisional: false,
           );
 
           _permissionGranted = result ?? false;
@@ -87,7 +87,7 @@ class LocalNotificationHelper {
             alert: true,
             badge: true,
             sound: true,
-            provisional: true,
+            provisional: false,
           );
 
           return _permissionGranted;

@@ -587,20 +587,20 @@ class RideWSController extends StateNotifier<RideWSState> {
     switch (lower) {
       case 'completed':
         await LocalNotificationHelper.showNotification(
-          '✅ Ride Completed',
+          'Ride Completed',
           'Your ride has been completed successfully.',
         );
         break;
       case 'cancelled':
         await LocalNotificationHelper.showNotification(
-          '❌ Ride Cancelled',
+          'Ride Cancelled',
           'Your ride has been cancelled.',
         );
         break;
 
       default:
         await LocalNotificationHelper.showNotification(
-          '🚘 Ride Update',
+          'Ride Update',
           'Ride is now ${status.toUpperCase()}',
         );
     }

@@ -129,6 +129,9 @@ class _ReceivedRideCard extends ConsumerWidget {
     BuildContext context,
     WidgetRef ref,
   ) {
+    final unreadMap = ref.watch(unreadRideProvider);
+    final unreadCount = unreadMap[request.rideId] ?? 0;
+
     if (request.status.toLowerCase() == "accepted") {
       ref.watch(
         rideWSControllerProvider(
@@ -504,7 +507,7 @@ class _ReceivedRideCard extends ConsumerWidget {
                   child: _button(
                     text: "Reject",
                     color: Colors.redAccent,
-                    icon: Icons.close_rounded,
+                    icon: const Icon(Icons.close_rounded),
                     onTap: () async {
                       final notifier = ref.read(
                         rideRequestWSControllerProvider(
@@ -524,7 +527,7 @@ class _ReceivedRideCard extends ConsumerWidget {
                   child: _button(
                     text: "Accept",
                     color: primaryColor,
-                    icon: Icons.check_rounded,
+                    icon: const Icon(Icons.check_rounded),
                     onTap: () async {
                       final notifier = ref.read(
                         rideRequestWSControllerProvider(
@@ -547,7 +550,40 @@ class _ReceivedRideCard extends ConsumerWidget {
               child: _button(
                 text: "Open Chat",
                 color: Colors.blue,
-                icon: Icons.chat_bubble_rounded,
+                icon: Stack(
+                  clipBehavior: Clip.none,
+                  children: [
+                    const Icon(Icons.chat_bubble_rounded),
+                    if (unreadCount > 0)
+                      Positioned(
+                        right: -10,
+                        top: -8,
+                        child: Container(
+                          padding: const EdgeInsets.symmetric(
+                            horizontal: 4,
+                            vertical: 2,
+                          ),
+                          constraints: const BoxConstraints(
+                            minWidth: 18,
+                            minHeight: 18,
+                          ),
+                          decoration: const BoxDecoration(
+                            color: Colors.red,
+                            shape: BoxShape.circle,
+                          ),
+                          child: Text(
+                            unreadCount > 99 ? '99+' : unreadCount.toString(),
+                            textAlign: TextAlign.center,
+                            style: const TextStyle(
+                              color: Colors.white,
+                              fontSize: 10,
+                              fontWeight: FontWeight.bold,
+                            ),
+                          ),
+                        ),
+                      ),
+                  ],
+                ),
                 onTap: () {
                   Navigator.push(
                     context,
@@ -681,17 +717,14 @@ class _ReceivedRideCard extends ConsumerWidget {
   Widget _button({
     required String text,
     required Color color,
-    required IconData icon,
+    required Widget icon,
     required VoidCallback onTap,
   }) {
     return SizedBox(
       height: 50,
       child: ElevatedButton.icon(
         onPressed: onTap,
-        icon: Icon(
-          icon,
-          size: 18,
-        ),
+        icon: icon,
         label: Text(
           text,
           style: GoogleFonts.poppins(
