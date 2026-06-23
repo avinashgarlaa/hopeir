@@ -244,6 +244,9 @@ class _RideCard extends ConsumerWidget {
                 )
               : '';
 
+          final unreadMap = ref.watch(unreadRideProvider);
+          final unreadCount = unreadMap[request.rideId] ?? 0;
+
           return Padding(
             padding: const EdgeInsets.all(
               18,
@@ -584,7 +587,7 @@ class _RideCard extends ConsumerWidget {
                       Expanded(
                         child: _button(
                           text: "Track Ride",
-                          icon: Icons.map_rounded,
+                          icon: const Icon(Icons.map_rounded),
                           color: Colors.blue,
                           onTap: () async {
                             ref
@@ -630,9 +633,31 @@ class _RideCard extends ConsumerWidget {
                       Expanded(
                         child: _button(
                           text: "Chat Driver",
-                          icon: Icons.chat_bubble_rounded,
+                          icon: Stack(
+                            clipBehavior: Clip.none,
+                            children: [
+                              const Icon(Icons.chat_bubble_rounded),
+                              if (unreadCount > 0)
+                                Positioned(
+                                  top: -2,
+                                  right: -2,
+                                  child: Container(
+                                    width: 10,
+                                    height: 10,
+                                    decoration: const BoxDecoration(
+                                      color: Colors.red,
+                                      shape: BoxShape.circle,
+                                    ),
+                                  ),
+                                ),
+                            ],
+                          ),
                           color: primaryColor,
                           onTap: () {
+                            ref
+                                .read(unreadRideProvider.notifier)
+                                .clearUnread(request.rideId);
+
                             Navigator.push(
                               context,
                               MaterialPageRoute(
@@ -699,8 +724,8 @@ class _RideCard extends ConsumerWidget {
   }
 
   Widget _button({
+    required Widget icon,
     required String text,
-    required IconData icon,
     required Color color,
     required VoidCallback onTap,
   }) {
@@ -708,10 +733,7 @@ class _RideCard extends ConsumerWidget {
       height: 54,
       child: ElevatedButton.icon(
         onPressed: onTap,
-        icon: Icon(
-          icon,
-          size: 18,
-        ),
+        icon: icon,
         label: Text(
           text,
           style: GoogleFonts.poppins(

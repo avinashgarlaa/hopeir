@@ -4,6 +4,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:font_awesome_flutter/font_awesome_flutter.dart';
 import 'package:google_fonts/google_fonts.dart';
+import 'package:hop_eir/features/stations/presentation/providers/providers.dart';
 import 'package:intl/intl.dart';
 
 import 'package:hop_eir/features/auth/presentation/providers/auth_provider.dart';
@@ -21,6 +22,15 @@ class RideChatPage extends ConsumerStatefulWidget {
 class _RideChatPageState extends ConsumerState<RideChatPage> {
   final TextEditingController _textCtrl = TextEditingController();
   final ScrollController _scrollCtrl = ScrollController();
+  @override
+  void initState() {
+    super.initState();
+
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      ref.read(unreadRideProvider.notifier).clearUnread(widget.rideId);
+    });
+  }
+
   static const primaryColor = Color.fromRGBO(137, 177, 98, 1);
   int _lastMsgCount = 0;
 

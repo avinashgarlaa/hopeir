@@ -461,7 +461,7 @@ class RideRequestWSController extends StateNotifier<RideRequestWSState> {
       );
       debugPrint(st.toString());
 
-      LocalNotificationHelper.showNotification(
+      await LocalNotificationHelper.showNotification(
         "Request Error",
         "Failed to send response to request",
       );

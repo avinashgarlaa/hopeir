@@ -57,3 +57,25 @@ final searchStationsProvider =
 
 // Additional providers
 final hasUnreadRequestsProvider = StateProvider<bool>((ref) => false);
+
+final unreadRideProvider =
+    StateNotifierProvider<UnreadRideNotifier, Map<int, int>>(
+  (ref) => UnreadRideNotifier(),
+);
+
+class UnreadRideNotifier extends StateNotifier<Map<int, int>> {
+  UnreadRideNotifier() : super({});
+
+  void addUnread(int rideId) {
+    state = {
+      ...state,
+      rideId: (state[rideId] ?? 0) + 1,
+    };
+  }
+
+  void clearUnread(int rideId) {
+    final updated = Map<int, int>.from(state);
+    updated.remove(rideId);
+    state = updated;
+  }
+}

@@ -205,6 +205,7 @@ class LocalNotificationHelper {
         presentAlert: true,
         presentBadge: true,
         presentSound: true,
+        sound: 'default', // ✅ FIXED: Explicitly set default system sound
         interruptionLevel: InterruptionLevel.active,
         threadIdentifier: 'ride_requests',
         categoryIdentifier: 'ride_request_category',

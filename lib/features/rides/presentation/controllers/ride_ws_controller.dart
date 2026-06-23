@@ -5,6 +5,7 @@ import 'package:flutter/foundation.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:geolocator/geolocator.dart';
 import 'package:hop_eir/features/rides/presentation/providers/ride_repository_provider.dart';
+import 'package:hop_eir/features/stations/presentation/providers/providers.dart';
 import 'package:latlong2/latlong.dart';
 import 'package:web_socket_channel/web_socket_channel.dart';
 
@@ -659,6 +660,8 @@ class RideWSController extends StateNotifier<RideWSState> {
 
     // 🔔 Don't notify for my own messages
     if (senderId != state.myUserId) {
+      ref.read(unreadRideProvider.notifier).addUnread(rideId);
+
       final senderName = state.role == "driver" ? "Passenger" : "Driver";
 
       await LocalNotificationHelper.showNotification(
